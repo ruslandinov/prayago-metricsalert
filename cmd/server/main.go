@@ -5,7 +5,7 @@ import (
 	"strings"
 	"strconv"
 	"net/http"
-	. "prayago-metricsalert/internal/memstorage"
+	"prayago-metricsalert/internal/memstorage"
 )
 
 func helloWorld(res http.ResponseWriter, req *http.Request) {
@@ -48,7 +48,7 @@ func updateMetric(res http.ResponseWriter, req *http.Request) {
 
 	mtype := req.PathValue("mtype")
 	switch mtype {
-		case GaugeMetric:
+		case memstorage.GaugeMetric:
 			mvalue, err := strconv.ParseFloat(strings.TrimSpace(mvalueStr), 64)
 			if err != nil {
 				http.Error(res, fmt.Sprintf("Wrong metric value: %v\r\n", err), http.StatusBadRequest)
@@ -56,7 +56,7 @@ func updateMetric(res http.ResponseWriter, req *http.Request) {
 			}
 			body += fmt.Sprintf("Gauge metric value parsed successfully: %v\r\n", mvalue)
 
-		case CounterMetric:
+		case memstorage.CounterMetric:
 			mvalue, err := strconv.ParseInt(strings.TrimSpace(mvalueStr), 10, 64)
 			if err != nil {
 				http.Error(res, fmt.Sprintf("Wrong metric value: %v\r\n", err), http.StatusBadRequest)
