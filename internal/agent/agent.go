@@ -174,7 +174,8 @@ func doSendMetric(url string) {
 	resp, err := http.Post(url, "text/plain", nil)
 	if err != nil {
 		fmt.Printf("doSendMetric(): url=%v, error=%v\r\n", url, err)
-	} else {
-		fmt.Printf("doSendMetric(): url=%v, resp=%v\r\n", url, resp)
+		return
 	}
+	defer resp.Body.Close()
+	fmt.Printf("doSendMetric(): url=%v, resp=%v\r\n", url, resp)
 }
