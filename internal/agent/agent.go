@@ -3,6 +3,8 @@ package agent
 import (
 	"fmt"
 	"math/rand"
+	"net/http"
+	"prayago-metricsalert/internal/memstorage"
 	"reflect"
 	"runtime"
 	"time"
@@ -58,6 +60,7 @@ type AgentConfig struct {
 }
 
 type Agent struct {
+	config   AgentConfig
 	memStats runtime.MemStats
 	metrics  Metrics
 }
@@ -68,6 +71,12 @@ const randomValue = "RandomValue"
 func NewAgent() *Agent {
 	fmt.Printf("Agent created.\r\n")
 
+	var config = AgentConfig{
+		serverAddress:  "127.0.0.1",
+		serverPort:     "8080",
+		pollInterval:   2,
+		reportInterval: 10,
+	}
 	var metrics = Metrics{
 		pollCount:   0,
 		randomValue: 0,
@@ -75,6 +84,7 @@ func NewAgent() *Agent {
 	}
 
 	return &Agent{
+		config:  config,
 		metrics: metrics,
 	}
 }
@@ -91,16 +101,16 @@ func (agent *Agent) Run() {
 func (agent *Agent) startPolling() {
 	fmt.Printf("Agent started polling.\r\n")
 	for {
+		time.Sleep(time.Duration(agent.config.pollInterval) * time.Second)
 		agent.updateMetrics()
-		time.Sleep(2 * time.Second)
 	}
 }
 
 func (agent *Agent) startSending() {
 	fmt.Printf("Agent started sending.\r\n")
 	for {
+		time.Sleep(time.Duration(agent.config.reportInterval) * time.Second)
 		agent.sendMetrics()
-		time.Sleep(10 * time.Second)
 	}
 }
 
@@ -122,7 +132,7 @@ func (agent *Agent) updateMetrics() {
 			metric.value = fmt.Sprintf("%v", value)
 			agent.metrics.list[mName] = metric
 		} else {
-			agent.metrics.list[mName] = Metric{"gauge", mName, fmt.Sprintf("%v", value)}
+			agent.metrics.list[mName] = Metric{memstorage.GaugeMetric, mName, fmt.Sprintf("%v", value)}
 		}
 	}
 
@@ -134,4 +144,37 @@ func (agent *Agent) updateMetrics() {
 
 func (agent *Agent) sendMetrics() {
 	fmt.Printf("Agent sent metrics.\r\n")
+
+	var url string
+	for _, metric := range agent.metrics.list {
+		url = fmt.Sprintf("http://%s:%s/update/%s/%s/%s",
+			agent.config.serverAddress, agent.config.serverPort,
+			metric.mType, metric.name, metric.value,
+		)
+		doSendMetric(url)
+		// fmt.Printf("sendMetrics() url=%v\r\n", url)
+	}
+
+	// pollCount
+	url = fmt.Sprintf("http://%s:%s/update/%s/%s/%v",
+		agent.config.serverAddress, agent.config.serverPort,
+		memstorage.CounterMetric, pollCount, agent.metrics.pollCount,
+	)
+	doSendMetric(url)
+	// randomValue
+	url = fmt.Sprintf("http://%s:%s/update/%s/%s/%v",
+		agent.config.serverAddress, agent.config.serverPort,
+		memstorage.GaugeMetric, randomValue, agent.metrics.randomValue,
+	)
+	doSendMetric(url)
+}
+
+func doSendMetric(url string) {
+	// fmt.Printf("doSendMetric() url=%v\r\n", url)
+	resp, err := http.Post(url, "text/plain", nil)
+	if err != nil {
+		fmt.Printf("doSendMetric(): url=%v, error=%v\r\n", url, err)
+	} else {
+		fmt.Printf("doSendMetric(): url=%v, resp=%v\r\n", url, resp)
+	}
 }
