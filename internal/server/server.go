@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"github.com/go-chi/chi/v5"
 	"net/http"
 	"prayago-metricsalert/internal/memstorage"
 	"strconv"
@@ -12,10 +13,12 @@ type Server struct {
 }
 
 func NewServer() *Server {
-	mux := http.NewServeMux()
-	// Go 1.22 rocks!
-	mux.HandleFunc(`POST /update/{mtype}/{mname}/{mvalue}`, updateMetric)
-	err := http.ListenAndServe(`:8080`, mux)
+	router := chi.NewRouter()
+	router.Post("/update/{mtype}/{mname}/{mvalue}", func(res http.ResponseWriter, req *http.Request) {
+		updateMetric(res, req)
+	})
+
+	err := http.ListenAndServe(`:8080`, router)
 	if err != nil {
 		panic(err)
 	}
@@ -23,16 +26,16 @@ func NewServer() *Server {
 	return &Server{}
 }
 
-func updateMetric(res http.ResponseWriter, req *http.Request) {
+func updateMetric(ms memstorage.MemStorage, res http.ResponseWriter, req *http.Request) {
 	// for local development and debug
 	var body = "Header ===============\r\n"
 	for k, v := range req.Header {
 		body += fmt.Sprintf("%s: %v\r\n", k, v)
 	}
 	body += "Params ===============\r\n"
-	body += fmt.Sprintf("mtype: %v\r\n", req.PathValue("mtype"))
-	body += fmt.Sprintf("mname: %v\r\n", req.PathValue("mname"))
-	body += fmt.Sprintf("mvalue: %v\r\n", req.PathValue("mvalue"))
+	body += fmt.Sprintf("mtype: %v\r\n", chi.URLParam(req, "mtype"))
+	body += fmt.Sprintf("mname: %v\r\n", chi.URLParam(req, "mname"))
+	body += fmt.Sprintf("mvalue: %v\r\n", chi.URLParam(req, "mvalue"))
 	// res.Write([]byte(body))
 
 	if req.Header.Get("Content-type") != "text/plain" {
@@ -40,18 +43,19 @@ func updateMetric(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if mname := req.PathValue("mname"); mname == "" {
+	var mname string
+	if mname = chi.URLParam(req, "mname"); mname == "" {
 		http.Error(res, "Wrong metric name.", http.StatusNotFound)
 		return
 	}
 
-	mvalueStr := req.PathValue("mvalue")
+	mvalueStr := chi.URLParam(req, "mvalue")
 	if mvalueStr == "" {
 		http.Error(res, "Wrong metric value. Only gauge or counter are supported", http.StatusBadRequest)
 		return
 	}
 
-	mtype := req.PathValue("mtype")
+	mtype := chi.URLParam(req, "mtype")
 	switch mtype {
 	case memstorage.GaugeMetric:
 		mvalue, err := strconv.ParseFloat(strings.TrimSpace(mvalueStr), 64)
@@ -67,13 +71,13 @@ func updateMetric(res http.ResponseWriter, req *http.Request) {
 			http.Error(res, fmt.Sprintf("Wrong metric value: %v\r\n", err), http.StatusBadRequest)
 			return
 		}
+		ms.StoreMetric(mtype, mname, mvalue)
 		body += fmt.Sprintf("Counter metric value parsed successfully: %v\r\n", mvalue)
 
 	default:
 		http.Error(res, "Wrong metric type. Only gauge or counter are supported", http.StatusBadRequest)
 		return
 	}
-
 	// res.Write([]byte(body))
 	res.Header().Set("content-type", "text/plain")
 	res.WriteHeader(http.StatusOK)
