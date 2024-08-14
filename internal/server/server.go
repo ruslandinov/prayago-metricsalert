@@ -30,11 +30,15 @@ func NewServer(ms memstorage.MemStorage) *Server {
 	return &Server{}
 }
 
+func getAllMetrics(ms memstorage.MemStorage, res http.ResponseWriter, req *http.Request) {
+	io.WriteString(res, ms.GetAllMetricsAsString())
+}
+
 func getMetric(ms memstorage.MemStorage, res http.ResponseWriter, req *http.Request) {
-	mType := chi.URLParam(req, "mtype")
+	// mType := chi.URLParam(req, "mtype")
 	mName := chi.URLParam(req, "mname")
 
-	if value, present := ms.GetMetric(mType, mName); present {
+	if value, present := ms.GetMetric(mName); present {
 		io.WriteString(res, value)
 		return
 	}
