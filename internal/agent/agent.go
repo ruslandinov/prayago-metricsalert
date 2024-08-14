@@ -52,13 +52,6 @@ type Metrics struct {
 	list        map[string]Metric
 }
 
-type AgentConfig struct {
-	serverAddress  string
-	serverPort     string
-	pollInterval   int64
-	reportInterval int64
-}
-
 type Agent struct {
 	config   AgentConfig
 	memStats runtime.MemStats
@@ -68,15 +61,9 @@ type Agent struct {
 const pollCount = "PollCount"
 const randomValue = "RandomValue"
 
-func NewAgent() *Agent {
+func NewAgent(config AgentConfig) *Agent {
 	fmt.Printf("Agent created.\r\n")
 
-	var config = AgentConfig{
-		serverAddress:  "127.0.0.1",
-		serverPort:     "8080",
-		pollInterval:   2,
-		reportInterval: 10,
-	}
 	var metrics = Metrics{
 		pollCount:   0,
 		randomValue: 0,
@@ -143,8 +130,8 @@ func (agent *Agent) sendMetrics() {
 
 	var url string
 	for _, metric := range agent.metrics.list {
-		url = fmt.Sprintf("http://%s:%s/update/%s/%s/%s",
-			agent.config.serverAddress, agent.config.serverPort,
+		url = fmt.Sprintf("http://%s/update/%s/%s/%s",
+			agent.config.serverAddress,
 			metric.mType, metric.name, metric.value,
 		)
 		doSendMetric(url)
@@ -152,14 +139,14 @@ func (agent *Agent) sendMetrics() {
 	}
 
 	// pollCount
-	url = fmt.Sprintf("http://%s:%s/update/%s/%s/%v",
-		agent.config.serverAddress, agent.config.serverPort,
+	url = fmt.Sprintf("http://%s/update/%s/%s/%v",
+		agent.config.serverAddress,
 		memstorage.CounterMetric, pollCount, agent.metrics.pollCount,
 	)
 	doSendMetric(url)
 	// randomValue
-	url = fmt.Sprintf("http://%s:%s/update/%s/%s/%v",
-		agent.config.serverAddress, agent.config.serverPort,
+	url = fmt.Sprintf("http://%s/update/%s/%s/%v",
+		agent.config.serverAddress,
 		memstorage.GaugeMetric, randomValue, agent.metrics.randomValue,
 	)
 	doSendMetric(url)
