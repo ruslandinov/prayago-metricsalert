@@ -7,7 +7,7 @@ import (
 )
 
 func TestUpdateMetrics(t *testing.T) {
-	agent := NewAgent()
+	agent := NewAgent(NewAgentConfig())
 	agent.updateMetrics()
 
 	assert.NotEmpty(t, agent.metrics.list)
