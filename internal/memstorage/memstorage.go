@@ -32,7 +32,17 @@ func (ms *memStorage) StoreMetric(mType string, name string, value any) {
 	if _, present := ms.storage[mType]; !present {
 		ms.storage[mType] = make(map[string]interface{})
 	}
-	ms.storage[mType][name] = value
+
+	if mType == GaugeMetric {
+		ms.storage[mType][name] = value
+		return
+	}
+
+	if oldValue, present := ms.storage[mType][name]; present {
+		ms.storage[mType][name] = oldValue.(int64) + value.(int64)
+	} else {
+		ms.storage[mType][name] = value.(int64)
+	}
 }
 
 func (ms *memStorage) GetMetric(mType string, name string) (string, bool) {
