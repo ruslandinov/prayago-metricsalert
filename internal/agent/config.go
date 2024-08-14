@@ -26,12 +26,12 @@ func NewAgentConfig() AgentConfig {
 	}
 	if envReportIntrvl := os.Getenv("REPORT_INTERVAL"); envReportIntrvl != "" {
 		if reportIntervalInt, err := strconv.Atoi(envReportIntrvl); err == nil {
-			config.reportInterval = time.Duration(reportIntervalInt)
+			config.reportInterval = time.Duration(reportIntervalInt) * time.Second
 		}
 	}
 	if envPollIntrvl := os.Getenv("POLL_INTERVAL"); envPollIntrvl != "" {
 		if pollIntervalInt, err := strconv.Atoi(envPollIntrvl); err == nil {
-			config.pollInterval = time.Duration(pollIntervalInt)
+			config.pollInterval = time.Duration(pollIntervalInt) * time.Second
 		}
 	}
 
