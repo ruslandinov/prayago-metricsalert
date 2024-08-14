@@ -88,7 +88,7 @@ func (agent *Agent) Run() {
 func (agent *Agent) startPolling() {
 	fmt.Printf("Agent started polling.\r\n")
 	for {
-		time.Sleep(agent.config.pollInterval * time.Second)
+		time.Sleep(agent.config.pollInterval)
 		agent.updateMetrics()
 	}
 }
@@ -96,7 +96,7 @@ func (agent *Agent) startPolling() {
 func (agent *Agent) startSending() {
 	fmt.Printf("Agent started sending.\r\n")
 	for {
-		time.Sleep(agent.config.reportInterval * time.Second)
+		time.Sleep(agent.config.reportInterval)
 		agent.sendMetrics()
 	}
 }
