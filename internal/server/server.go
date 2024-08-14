@@ -15,6 +15,9 @@ type Server struct {
 
 func NewServer(ms memstorage.MemStorage) *Server {
 	router := chi.NewRouter()
+	router.Get("/", func(res http.ResponseWriter, req *http.Request) {
+		getAllMetrics(ms, res, req)
+	})
 	router.Get("/value/{mtype}/{mname}", func(res http.ResponseWriter, req *http.Request) {
 		getMetric(ms, res, req)
 	})

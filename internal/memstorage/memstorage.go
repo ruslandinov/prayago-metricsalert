@@ -12,6 +12,7 @@ const (
 type MemStorage interface {
 	StoreMetric(mType string, name string, value any)
 	GetMetric(name string) (string, bool)
+	GetAllMetricsAsString() string
 }
 
 type memStorage struct {
@@ -49,4 +50,13 @@ func (ms *memStorage) GetMetric(name string) (string, bool) {
 	}
 
 	return "", false
+}
+
+func (ms *memStorage) GetAllMetricsAsString() string {
+	s := ""
+	for mName, mValue := range ms.storage {
+		s += fmt.Sprintf("%s=%v\r\n", mName, mValue)
+	}
+
+	return s
 }
