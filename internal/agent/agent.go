@@ -126,8 +126,6 @@ func (agent *Agent) updateMetrics() {
 	// but I'm doing it in my way ;)
 	for _, mName := range needfulMemStats {
 		value := reflect.Indirect(reflectedMemStats).FieldByName(mName)
-		// fmt.Printf("%v=%v\r\n", mName, value)
-
 		if metric, present := agent.metrics.list[mName]; present {
 			metric.value = fmt.Sprintf("%v", value)
 			agent.metrics.list[mName] = metric
@@ -138,8 +136,6 @@ func (agent *Agent) updateMetrics() {
 
 	agent.metrics.pollCount++
 	agent.metrics.randomValue = rand.Float64()
-
-	// fmt.Printf("Metrics: %v\r\n", agent.metrics)
 }
 
 func (agent *Agent) sendMetrics() {
@@ -173,9 +169,9 @@ func doSendMetric(url string) {
 	// fmt.Printf("doSendMetric() url=%v\r\n", url)
 	resp, err := http.Post(url, "text/plain", nil)
 	if err != nil {
-		fmt.Printf("doSendMetric(): url=%v, error=%v\r\n", url, err)
+		// fmt.Printf("doSendMetric(): url=%v, error=%v\r\n", url, err)
 		return
 	}
 	defer resp.Body.Close()
-	fmt.Printf("doSendMetric(): url=%v, resp=%v\r\n", url, resp)
+	// fmt.Printf("doSendMetric(): url=%v, resp=%v\r\n", url, resp)
 }

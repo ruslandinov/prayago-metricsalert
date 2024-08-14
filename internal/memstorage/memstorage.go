@@ -27,7 +27,7 @@ func NewMemStorage() MemStorage {
 }
 
 func (ms *memStorage) StoreMetric(mType string, name string, value any) {
-	fmt.Printf("StoreMetric: type=%v name=%v value=%v\r\n", mType, name, value)
+	// fmt.Printf("StoreMetric: type=%v name=%v value=%v\r\n", mType, name, value)
 
 	if _, present := ms.storage[mType]; !present {
 		ms.storage[mType] = make(map[string]interface{})
@@ -46,7 +46,7 @@ func (ms *memStorage) StoreMetric(mType string, name string, value any) {
 }
 
 func (ms *memStorage) GetMetric(mType string, name string) (string, bool) {
-	fmt.Printf("GetMetric: type=%v name=%v\r\n", mType, name)
+	// fmt.Printf("GetMetric: type=%v name=%v\r\n", mType, name)
 
 	if typeList, present := ms.storage[mType]; present {
 		if value, present := typeList[name]; present {
