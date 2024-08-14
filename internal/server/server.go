@@ -36,7 +36,7 @@ func getMetric(ms memstorage.MemStorage, res http.ResponseWriter, req *http.Requ
 
 	if value, present := ms.GetMetric(mType, mName); present {
 		fmt.Printf("	GetMetric: value %s\r\n\r\n", value)
-		io.WriteString(res, fmt.Sprintf("%s", value))
+		io.WriteString(res, value)
 		return
 	}
 
