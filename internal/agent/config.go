@@ -2,22 +2,20 @@ package agent
 
 import (
 	"flag"
+	"time"
 )
 
 type AgentConfig struct {
 	serverAddress  string
-	reportInterval int64
-	pollInterval   int64
+	reportInterval time.Duration
+	pollInterval   time.Duration
 }
 
 func NewAgentConfig() AgentConfig {
-	config := AgentConfig{"", 0, 0}
-
-	flag.StringVar(&config.serverAddress, "a", "localhost:8080", "server address and port")
-	flag.Int64Var(&config.reportInterval, "r", 10, "metrics sending interval")
-	flag.Int64Var(&config.pollInterval, "p", 2, "metrics poll(udpate) interval")
-
+	serverAddress := flag.String("a", "localhost:8080", "server address and port")
+	reportInterval := time.Duration(*flag.Int("r", 10, "metrics sending interval"))
+	pollInterval := time.Duration(*flag.Int("p", 2, "metrics poll(udpate) interval"))
 	flag.Parse()
 
-	return config
+	return AgentConfig{*serverAddress, reportInterval, pollInterval}
 }
