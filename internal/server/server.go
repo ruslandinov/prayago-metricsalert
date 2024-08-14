@@ -13,7 +13,7 @@ import (
 type Server struct {
 }
 
-func NewServer(ms memstorage.MemStorage) *Server {
+func NewServer(ms memstorage.MemStorage, config ServerConfig) *Server {
 	router := chi.NewRouter()
 	router.Get("/", func(res http.ResponseWriter, req *http.Request) {
 		getAllMetrics(ms, res, req)
@@ -25,7 +25,7 @@ func NewServer(ms memstorage.MemStorage) *Server {
 		updateMetric(ms, res, req)
 	})
 
-	err := http.ListenAndServe(`:8080`, router)
+	err := http.ListenAndServe(config.serverAddress, router)
 	if err != nil {
 		panic(err)
 	}

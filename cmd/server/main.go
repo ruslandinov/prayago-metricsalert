@@ -6,6 +6,5 @@ import (
 )
 
 func main() {
-	ms := memstorage.NewMemStorage()
-	_ = server.NewServer(ms)
+	_ = server.NewServer(memstorage.NewMemStorage(), server.NewServerConfig())
 }
