@@ -2,7 +2,6 @@ package agent
 
 import (
 	"flag"
-	"fmt"
 	"os"
 	"strconv"
 	"time"
