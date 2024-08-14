@@ -12,10 +12,10 @@ import (
 type Server struct {
 }
 
-func NewServer() *Server {
+func NewServer(ms memstorage.MemStorage) *Server {
 	router := chi.NewRouter()
 	router.Post("/update/{mtype}/{mname}/{mvalue}", func(res http.ResponseWriter, req *http.Request) {
-		updateMetric(res, req)
+		updateMetric(ms, res, req)
 	})
 
 	err := http.ListenAndServe(`:8080`, router)
@@ -63,6 +63,7 @@ func updateMetric(ms memstorage.MemStorage, res http.ResponseWriter, req *http.R
 			http.Error(res, fmt.Sprintf("Wrong metric value: %v\r\n", err), http.StatusBadRequest)
 			return
 		}
+		ms.StoreMetric(mtype, mname, mvalue)
 		body += fmt.Sprintf("Gauge metric value parsed successfully: %v\r\n", mvalue)
 
 	case memstorage.CounterMetric:
