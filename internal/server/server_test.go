@@ -116,8 +116,8 @@ func TestUpdateMetric(t *testing.T) {
 
 			// не можем мы просто так взять и протестировать переметризированные роутеры chi :(((
 			// https://haykot.dev/blog/til-testing-parametrized-urls-with-chi-router/
-			urlParams := chimocker.UrlParams{"mtype": test.mType, "mname": test.mName, "mvalue": test.mValue}
-			request = chimocker.WithUrlParams(request, urlParams)
+			urlParams := chimocker.URLParams{"mtype": test.mType, "mname": test.mName, "mvalue": test.mValue}
+			request = chimocker.WithURLParams(request, urlParams)
 			updateMetric(ms, w, request)
 
 			res := w.Result()
@@ -178,8 +178,8 @@ func TestGetMetric(t *testing.T) {
 
 			// не можем мы просто так взять и протестировать переметризированные роутеры chi :(((
 			// https://haykot.dev/blog/til-testing-parametrized-urls-with-chi-router/
-			urlParams := chimocker.UrlParams{"mtype": test.mType, "mname": test.mName}
-			request = chimocker.WithUrlParams(request, urlParams)
+			urlParams := chimocker.URLParams{"mtype": test.mType, "mname": test.mName}
+			request = chimocker.WithURLParams(request, urlParams)
 
 			getMetric(ms, w, request)
 
