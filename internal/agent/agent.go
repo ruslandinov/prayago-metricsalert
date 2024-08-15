@@ -86,7 +86,7 @@ func (agent *Agent) Run() {
 }
 
 func (agent *Agent) startPolling() {
-	fmt.Printf("Agent started polling.\r\n")
+	fmt.Printf("Agent started polling. %v\r\n", agent.config.pollInterval)
 	for {
 		time.Sleep(agent.config.pollInterval)
 		agent.updateMetrics()
@@ -94,7 +94,7 @@ func (agent *Agent) startPolling() {
 }
 
 func (agent *Agent) startSending() {
-	fmt.Printf("Agent started sending.\r\n")
+	fmt.Printf("Agent started sending. %v\r\n", agent.config.reportInterval)
 	for {
 		time.Sleep(agent.config.reportInterval)
 		agent.sendMetrics()
@@ -102,7 +102,7 @@ func (agent *Agent) startSending() {
 }
 
 func (agent *Agent) updateMetrics() {
-	fmt.Printf("Agent updated metrics.\r\n")
+	// fmt.Printf("Agent updated metrics.\r\n")
 
 	runtime.ReadMemStats(&agent.memStats)
 	reflectedMemStats := reflect.ValueOf(agent.memStats)
@@ -126,7 +126,7 @@ func (agent *Agent) updateMetrics() {
 }
 
 func (agent *Agent) sendMetrics() {
-	fmt.Printf("Agent sent metrics.\r\n")
+	// fmt.Printf("Agent sent metrics.\r\n")
 
 	var url string
 	for _, metric := range agent.metrics.list {
