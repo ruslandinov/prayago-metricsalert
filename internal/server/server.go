@@ -33,7 +33,7 @@ func NewServer(ms memstorage.MemStorage, config ServerConfig) *Server {
 	return &Server{}
 }
 
-func getAllMetrics(ms memstorage.MemStorage, res http.ResponseWriter, req *http.Request) {
+func getAllMetrics(ms memstorage.MemStorage, res http.ResponseWriter, _ *http.Request) {
 	io.WriteString(res, ms.GetAllMetricsAsString())
 }
 
