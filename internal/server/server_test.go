@@ -1,15 +1,14 @@
 package server
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
+	"prayago-metricsalert/internal/chimocker"
 )
 
 // т.к. сервер через DI получает ссылку на экземпляр MemoryStorage,
@@ -50,14 +49,14 @@ func TestUpdateMetric(t *testing.T) {
 		name   string
 		mType  string
 		mName  string
-		mValue any
+		mValue string
 		want   want
 	}{
 		{
 			name:   "Update gauge metric should be StatusOK",
 			mType:  "gauge",
 			mName:  "zzz",
-			mValue: 1.555,
+			mValue: "1.555",
 			want: want{
 				code: http.StatusOK,
 			},
@@ -66,7 +65,7 @@ func TestUpdateMetric(t *testing.T) {
 			name:   "Update counter metric should be StatusOK",
 			mType:  "counter",
 			mName:  "yyy",
-			mValue: 42,
+			mValue: "42",
 			want: want{
 				code: http.StatusOK,
 			},
@@ -75,7 +74,7 @@ func TestUpdateMetric(t *testing.T) {
 			name:   "Update unsupported type metric should return StatudBadRequest",
 			mType:  "bool",
 			mName:  "zzz",
-			mValue: true,
+			mValue: "true",
 			want: want{
 				code: http.StatusBadRequest,
 			},
@@ -84,7 +83,7 @@ func TestUpdateMetric(t *testing.T) {
 			name:   "Update bad named metric should return StatusNotFound",
 			mType:  "counter",
 			mName:  "",
-			mValue: 45,
+			mValue: "45",
 			want: want{
 				code: http.StatusNotFound,
 			},
@@ -110,20 +109,20 @@ func TestUpdateMetric(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			path := fmt.Sprintf("/update/%s/%s/%v", test.mType, test.mName, test.mValue)
+			path := fmt.Sprintf("/update/%s/%s/%s", test.mType, test.mName, test.mValue)
 			// fmt.Printf("path: %s\r\n", path)
 			request := httptest.NewRequest(http.MethodPost, path, nil)
 			w := httptest.NewRecorder()
 
-			rctx := chi.NewRouteContext()
-			rctx.URLParams.Add("mtype", test.mType)
-			rctx.URLParams.Add("mname", test.mName)
-			rctx.URLParams.Add("mvalue", fmt.Sprintf("%v", test.mValue))
-			request = request.WithContext(context.WithValue(request.Context(), chi.RouteCtxKey, rctx))
-
+			// не можем мы просто так взять и протестировать переметризированные роутеры chi :(((
+			// https://haykot.dev/blog/til-testing-parametrized-urls-with-chi-router/
+			urlParams := chimocker.UrlParams{"mtype": test.mType, "mname": test.mName, "mvalue": test.mValue}
+			request = chimocker.WithUrlParams(request, urlParams)
 			updateMetric(ms, w, request)
 
 			res := w.Result()
+			defer res.Body.Close()
+
 			assert.Equal(t, test.want.code, res.StatusCode)
 		})
 	}
@@ -177,10 +176,10 @@ func TestGetMetric(t *testing.T) {
 			request := httptest.NewRequest(http.MethodGet, path, nil)
 			w := httptest.NewRecorder()
 
-			rctx := chi.NewRouteContext()
-			rctx.URLParams.Add("mtype", test.mType)
-			rctx.URLParams.Add("mname", test.mName)
-			request = request.WithContext(context.WithValue(request.Context(), chi.RouteCtxKey, rctx))
+			// не можем мы просто так взять и протестировать переметризированные роутеры chi :(((
+			// https://haykot.dev/blog/til-testing-parametrized-urls-with-chi-router/
+			urlParams := chimocker.UrlParams{"mtype": test.mType, "mname": test.mName}
+			request = chimocker.WithUrlParams(request, urlParams)
 
 			getMetric(ms, w, request)
 
