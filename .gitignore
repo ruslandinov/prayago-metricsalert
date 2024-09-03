@@ -32,3 +32,6 @@ tmp/
 
 # Personal file with command line snippets for debug purposes
 cmd_snippets.txt
+
+# Air config files
+*.toml

@@ -5,6 +5,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"io"
 	"net/http"
+	"prayago-metricsalert/internal/logger"
 	"prayago-metricsalert/internal/memstorage"
 	"strconv"
 	"strings"
@@ -15,15 +16,21 @@ type Server struct {
 
 func NewServer(ms memstorage.MemStorage, config ServerConfig) *Server {
 	router := chi.NewRouter()
-	router.Get("/", func(res http.ResponseWriter, req *http.Request) {
-		getAllMetrics(ms, res, req)
-	})
-	router.Get("/value/{mtype}/{mname}", func(res http.ResponseWriter, req *http.Request) {
-		getMetric(ms, res, req)
-	})
-	router.Post("/update/{mtype}/{mname}/{mvalue}", func(res http.ResponseWriter, req *http.Request) {
-		updateMetric(ms, res, req)
-	})
+	router.Get("/",  logger.HttpHandlerWithLogger(
+		func(res http.ResponseWriter, req *http.Request) {
+			getAllMetrics(ms, res, req)
+		},
+	))
+	router.Get("/value/{mtype}/{mname}",  logger.HttpHandlerWithLogger(
+		func(res http.ResponseWriter, req *http.Request) {
+			getMetric(ms, res, req)
+		},
+	))
+	router.Post("/update/{mtype}/{mname}/{mvalue}", logger.HttpHandlerWithLogger(
+		func(res http.ResponseWriter, req *http.Request) {
+			updateMetric(ms, res, req)
+		},
+	))
 
 	err := http.ListenAndServe(config.serverAddress, router)
 	if err != nil {
