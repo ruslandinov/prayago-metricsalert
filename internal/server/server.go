@@ -16,12 +16,12 @@ type Server struct {
 
 func NewServer(ms memstorage.MemStorage, config ServerConfig) *Server {
 	router := chi.NewRouter()
-	router.Get("/",  logger.HTTPHandlerWithLogger(
+	router.Get("/", logger.HTTPHandlerWithLogger(
 		func(res http.ResponseWriter, req *http.Request) {
 			getAllMetrics(ms, res, req)
 		},
 	))
-	router.Get("/value/{mtype}/{mname}",  logger.HTTPHandlerWithLogger(
+	router.Get("/value/{mtype}/{mname}", logger.HTTPHandlerWithLogger(
 		func(res http.ResponseWriter, req *http.Request) {
 			getMetric(ms, res, req)
 		},

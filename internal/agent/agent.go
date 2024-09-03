@@ -1,12 +1,15 @@
 package agent
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"net/http"
 	"prayago-metricsalert/internal/memstorage"
 	"reflect"
 	"runtime"
+	"strconv"
 	"time"
 )
 
@@ -41,38 +44,40 @@ var needfulMemStats = [...]string{
 }
 
 type Metric struct {
-	mType string
-	name  string
-	value string
+	ID    string  `json:"id"`              // имя метрики
+	MType string  `json:"type"`            // параметр, принимающий значение gauge или counter
+	Delta int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
+	Value float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
 }
 
-type Metrics struct {
-	pollCount   int64
-	randomValue float64
-	list        map[string]Metric
-}
+// type Metrics struct {
+// 	pollCount   int64
+// 	randomValue float64
+// 	list        map[string]Metric
+// }
 
 type Agent struct {
-	config   AgentConfig
-	memStats runtime.MemStats
-	metrics  Metrics
+	config      AgentConfig
+	memStats    runtime.MemStats
+	metrics     map[string]Metric
+	pollCount   Metric
+	randomValue Metric
 }
 
 const pollCount = "PollCount"
 const randomValue = "RandomValue"
 
+var serverJSONPOSTUpdateURI string
+
 func NewAgent(config AgentConfig) *Agent {
 	fmt.Printf("Agent created.\r\n")
 
-	var metrics = Metrics{
-		pollCount:   0,
-		randomValue: 0,
-		list:        make(map[string]Metric),
-	}
-
+	serverJSONPOSTUpdateURI = fmt.Sprintf("http://%s/update/", config.serverAddress)
 	return &Agent{
-		config:  config,
-		metrics: metrics,
+		config:      config,
+		metrics:     make(map[string]Metric),
+		pollCount:   Metric{"PollCount", memstorage.CounterMetric, 0, 0},
+		randomValue: Metric{"RandomValue", memstorage.GaugeMetric, 0, 0},
 	}
 }
 
@@ -97,7 +102,7 @@ func (agent *Agent) startSending() {
 	fmt.Printf("Agent started sending. %v\r\n", agent.config.reportInterval)
 	for {
 		time.Sleep(agent.config.reportInterval)
-		agent.sendMetrics()
+		agent.sendJSONMetrics()
 	}
 }
 
@@ -113,26 +118,28 @@ func (agent *Agent) updateMetrics() {
 	// but I'm doing it in my way ;)
 	for _, mName := range needfulMemStats {
 		value := reflect.Indirect(reflectedMemStats).FieldByName(mName)
-		if metric, present := agent.metrics.list[mName]; present {
-			metric.value = fmt.Sprintf("%v", value)
-			agent.metrics.list[mName] = metric
+		valueFloat64, _ := strconv.ParseFloat(fmt.Sprintf("%v", value), 64)
+		if metric, present := agent.metrics[mName]; present {
+			metric.Value = valueFloat64
+			agent.metrics[mName] = metric
 		} else {
-			agent.metrics.list[mName] = Metric{memstorage.GaugeMetric, mName, fmt.Sprintf("%v", value)}
+			agent.metrics[mName] = Metric{mName, memstorage.GaugeMetric, 0, valueFloat64}
 		}
 	}
 
-	agent.metrics.pollCount++
-	agent.metrics.randomValue = rand.Float64()
+	agent.pollCount.Delta++
+	agent.randomValue.Value = rand.Float64()
+	// fmt.Printf("%v \r\n\r\n", agent.metrics)
 }
 
 func (agent *Agent) sendMetrics() {
 	// fmt.Printf("Agent sent metrics.\r\n")
 
 	var url string
-	for _, metric := range agent.metrics.list {
-		url = fmt.Sprintf("http://%s/update/%s/%s/%s",
+	for _, metric := range agent.metrics {
+		url = fmt.Sprintf("http://%s/update/%s/%s/%v",
 			agent.config.serverAddress,
-			metric.mType, metric.name, metric.value,
+			metric.MType, metric.ID, metric.Value,
 		)
 		doSendMetric(url)
 		// fmt.Printf("sendMetrics() url=%v\r\n", url)
@@ -141,13 +148,13 @@ func (agent *Agent) sendMetrics() {
 	// pollCount
 	url = fmt.Sprintf("http://%s/update/%s/%s/%v",
 		agent.config.serverAddress,
-		memstorage.CounterMetric, pollCount, agent.metrics.pollCount,
+		memstorage.CounterMetric, pollCount, agent.pollCount.Delta,
 	)
 	doSendMetric(url)
 	// randomValue
 	url = fmt.Sprintf("http://%s/update/%s/%s/%v",
 		agent.config.serverAddress,
-		memstorage.GaugeMetric, randomValue, agent.metrics.randomValue,
+		memstorage.GaugeMetric, randomValue, agent.randomValue.Value,
 	)
 	doSendMetric(url)
 }
@@ -161,4 +168,29 @@ func doSendMetric(url string) {
 	}
 	defer resp.Body.Close()
 	// fmt.Printf("doSendMetric(): url=%v, resp=%v\r\n", url, resp)
+}
+
+func (agent *Agent) sendJSONMetrics() {
+	// fmt.Printf("Agent sent metrics.\r\n")
+
+	for _, metric := range agent.metrics {
+		doSendJSONMetric(metric)
+	}
+
+	doSendJSONMetric(agent.pollCount)
+	doSendJSONMetric(agent.randomValue)
+}
+
+func doSendJSONMetric(metric Metric) {
+	// fmt.Printf("doSendJSONMetric() %v\r\n", metric)
+
+	jsonValue, _ := json.Marshal(metric)
+	// fmt.Printf("doSendJSONMetric(): %s\r\n", jsonValue)
+	resp, err := http.Post(serverJSONPOSTUpdateURI, "application/json", bytes.NewBuffer(jsonValue))
+	if err != nil {
+		// fmt.Printf("doSendJSONMetric(): url=%v, error=%v\r\n", serverJSONPOSTUpdateURI, err)
+		return
+	}
+	defer resp.Body.Close()
+	// fmt.Printf("doSendJSONMetric(): url=%v, resp=%v\r\n", serverJSONPOSTUpdateURI, resp)
 }
