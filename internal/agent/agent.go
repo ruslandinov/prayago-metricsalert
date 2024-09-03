@@ -102,6 +102,7 @@ func (agent *Agent) startSending() {
 	fmt.Printf("Agent started sending. %v\r\n", agent.config.reportInterval)
 	for {
 		time.Sleep(agent.config.reportInterval)
+		agent.sendMetrics()
 		agent.sendJSONMetrics()
 	}
 }
