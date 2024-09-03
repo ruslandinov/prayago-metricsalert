@@ -43,7 +43,7 @@ func init() {
 	lInstance = *logger.Sugar()
 }
 
-func HttpHandlerWithLogger(h http.HandlerFunc) http.HandlerFunc {
+func HTTPHandlerWithLogger(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
