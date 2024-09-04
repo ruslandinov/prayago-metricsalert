@@ -200,6 +200,10 @@ func getMetricJSON(ms memstorage.MemStorage, res http.ResponseWriter, req *http.
 }
 
 func storeMetricValue(ms memstorage.MemStorage, mType string, mName string, mValue any) (any, error) {
+	if mType != memstorage.GaugeMetric && mType != memstorage.CounterMetric {
+		return nil, fmt.Errorf("unsupported metric type %s", mType)
+	}
+
 	typedValue, err := typeMetricValue(mType, mValue)
 	if err != nil {
 		logger.LogSugar.Infoln("storeMetricValue", "error", err)
