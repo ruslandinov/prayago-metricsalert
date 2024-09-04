@@ -1,6 +1,8 @@
 package server
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -31,6 +33,11 @@ func NewServer(ms memstorage.MemStorage, config ServerConfig) *Server {
 	router.Get("/value/{mtype}/{mname}", logger.HTTPHandlerWithLogger(
 		func(res http.ResponseWriter, req *http.Request) {
 			getMetric(ms, res, req)
+		},
+	))
+	router.Post("/update/", logger.HTTPHandlerWithLogger(
+		func(res http.ResponseWriter, req *http.Request) {
+			updateMetricJSON(ms, res, req)
 		},
 	))
 	router.Post("/update/{mtype}/{mname}/{mvalue}", logger.HTTPHandlerWithLogger(
@@ -83,6 +90,60 @@ func updateMetric(ms memstorage.MemStorage, res http.ResponseWriter, req *http.R
 
 	res.Header().Set("content-type", "text/plain")
 	res.WriteHeader(http.StatusOK)
+}
+
+func updateMetricJSON(ms memstorage.MemStorage, res http.ResponseWriter, req *http.Request) {
+	// TODO: extract content type check to middleware
+	ctHeader := req.Header.Get("Content-Type")
+	if ctHeader != "" {
+		contentType := strings.ToLower(strings.TrimSpace(strings.Split(ctHeader, ";")[0]))
+		if contentType != "application/json" {
+			http.Error(res, "Wrong content type", http.StatusBadRequest)
+		}
+	}
+
+	var buf bytes.Buffer
+	_, err := buf.ReadFrom(req.Body)
+	if err != nil {
+		http.Error(res, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	var metric Metric
+	if err = json.Unmarshal(buf.Bytes(), &metric); err != nil {
+		http.Error(res, err.Error(), http.StatusBadRequest)
+		return
+	}
+	// fmt.Printf("updateMetricJSON: metric=%v\r\n", metric)
+
+	// TODO: should we validate metric values depending on metric type?
+	var mValue any
+	if metric.MType == memstorage.GaugeMetric {
+		mValue = metric.Value
+	} else {
+		mValue = metric.Delta
+	}
+
+	var newValue any
+	if newValue, err = storeMetricValue(ms, metric.MType, metric.ID, mValue); err != nil {
+		http.Error(res, fmt.Sprintf("Wrong metric value: %v\r\n", err), http.StatusBadRequest)
+	}
+
+	if metric.MType == memstorage.GaugeMetric {
+		metric.Value = newValue.(float64)
+	} else {
+		metric.Delta = newValue.(int64)
+	}
+
+	metricMarshalled, err := json.Marshal(metric)
+	if err != nil {
+		http.Error(res, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	res.Header().Set("Content-Type", "application/json")
+	res.WriteHeader(http.StatusOK)
+	res.Write(metricMarshalled)
 }
 
 func storeMetricValue(ms memstorage.MemStorage, mType string, mName string, mValue any) (any, error) {
