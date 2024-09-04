@@ -133,7 +133,7 @@ func (agent *Agent) sendMetrics() {
 	for _, metric := range agent.metrics {
 		url = fmt.Sprintf("http://%s/update/%s/%s/%v",
 			agent.config.serverAddress,
-			metric.MType, metric.ID, metric.Value,
+			metric.MType, metric.ID, *metric.Value,
 		)
 		doSendMetric(url)
 		// fmt.Printf("sendMetrics() url=%v\r\n", url)
@@ -142,13 +142,13 @@ func (agent *Agent) sendMetrics() {
 	// pollCount
 	url = fmt.Sprintf("http://%s/update/%s/%s/%v",
 		agent.config.serverAddress,
-		memstorage.CounterMetric, pollCount, agent.pollCount.Delta,
+		memstorage.CounterMetric, pollCount, *agent.pollCount.Delta,
 	)
 	doSendMetric(url)
 	// randomValue
 	url = fmt.Sprintf("http://%s/update/%s/%s/%v",
 		agent.config.serverAddress,
-		memstorage.GaugeMetric, randomValue, agent.randomValue.Value,
+		memstorage.GaugeMetric, randomValue, *agent.randomValue.Value,
 	)
 	doSendMetric(url)
 }
