@@ -2,10 +2,13 @@ package agent
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math/rand"
 	"net/http"
+	"prayago-metricsalert/internal/logger"
 	"prayago-metricsalert/internal/memstorage"
 	"prayago-metricsalert/internal/protocol"
 	"reflect"
@@ -153,7 +156,7 @@ func (agent *Agent) sendMetrics() {
 func doSendMetric(url string) {
 	resp, err := http.Post(url, "text/plain", nil)
 	if err != nil {
-		// fmt.Printf("doSendMetric(): url=%v, error=%v\r\n", url, err)
+		logger.LogSugar.Errorf("doSendMetric(): url=%v, error=%v\r\n", url, err)
 		return
 	}
 	defer resp.Body.Close()
@@ -170,11 +173,38 @@ func (agent *Agent) sendJSONMetrics() {
 
 func doSendJSONMetric(metric Metric) {
 	jsonValue, _ := json.Marshal(metric)
-	// fmt.Printf("doSendJSONMetric(): %s\r\n", jsonValue)
-	resp, err := http.Post(serverJSONPOSTUpdateURI, "application/json", bytes.NewBuffer(jsonValue))
+
+	var gzippedBytes bytes.Buffer
+	gzipper := gzip.NewWriter(&gzippedBytes)
+	gzipOk := false
+	if _, err := gzipper.Write(jsonValue); err == nil {
+		if err := gzipper.Close(); err == nil {
+			gzipOk = true
+		}
+	}
+
+	var req *http.Request
+	if gzipOk {
+		req, _ = http.NewRequest("POST", serverJSONPOSTUpdateURI, &gzippedBytes)
+		req.Header.Add("Content-Encoding", "gzip")
+	} else {
+		// resp, err := http.Post(serverJSONPOSTUpdateURI, "application/json", bytes.NewBuffer(jsonValue))
+		req, _ = http.NewRequest("POST", serverJSONPOSTUpdateURI, bytes.NewBuffer(jsonValue))
+	}
+
+	req.Header.Add("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		// fmt.Printf("doSendJSONMetric(): url=%v, error=%v\r\n", serverJSONPOSTUpdateURI, err)
+		logger.LogSugar.Errorln("doSendJSONMetric", "error", err)
 		return
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		logger.LogSugar.Warnln("doSendJSONMetric",
+			"status:", resp.StatusCode,
+			"response:", string(bodyBytes),
+		)
 	}
 	defer resp.Body.Close()
 }
