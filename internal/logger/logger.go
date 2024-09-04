@@ -8,6 +8,7 @@ import (
 )
 
 var Log *zap.Logger = zap.NewNop()
+var LogSugar *zap.SugaredLogger
 
 type (
 	responseStats struct {
@@ -35,12 +36,12 @@ func (r *loggingResponseWriter) WriteHeader(statusCode int) {
 	r.stats.status = statusCode
 }
 
-var lInstance zap.SugaredLogger
-
 func init() {
 	logger, _ := zap.NewProduction()
+	Log = logger
 	defer logger.Sync()
-	lInstance = *logger.Sugar()
+
+	LogSugar = logger.Sugar()
 }
 
 func HTTPHandlerWithLogger(h http.HandlerFunc) http.HandlerFunc {
@@ -58,7 +59,7 @@ func HTTPHandlerWithLogger(h http.HandlerFunc) http.HandlerFunc {
 		h.ServeHTTP(&respWriter, r)
 		duration := time.Since(start)
 
-		lInstance.Infoln(
+		LogSugar.Infoln(
 			"uri", r.RequestURI,
 			"method", r.Method,
 			"duration", duration,
