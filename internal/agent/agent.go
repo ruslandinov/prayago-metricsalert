@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net/http"
 	"prayago-metricsalert/internal/memstorage"
+	"prayago-metricsalert/internal/protocol"
 	"reflect"
 	"runtime"
 	"strconv"
@@ -43,18 +44,7 @@ var needfulMemStats = [...]string{
 	"TotalAlloc",
 }
 
-type Metric struct {
-	ID    string  `json:"id"`              // имя метрики
-	MType string  `json:"type"`            // параметр, принимающий значение gauge или counter
-	Delta int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
-	Value float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
-}
-
-// type Metrics struct {
-// 	pollCount   int64
-// 	randomValue float64
-// 	list        map[string]Metric
-// }
+type Metric = protocol.Metric
 
 type Agent struct {
 	config      AgentConfig
@@ -76,8 +66,8 @@ func NewAgent(config AgentConfig) *Agent {
 	return &Agent{
 		config:      config,
 		metrics:     make(map[string]Metric),
-		pollCount:   Metric{"PollCount", memstorage.CounterMetric, 0, 0},
-		randomValue: Metric{"RandomValue", memstorage.GaugeMetric, 0, 0},
+		pollCount:   Metric{ID: "PollCount", MType: memstorage.CounterMetric, Delta: 0, Value: 0},
+		randomValue: Metric{ID: "RandomValue", MType: memstorage.GaugeMetric, Delta: 0, Value: 0},
 	}
 }
 
@@ -124,7 +114,7 @@ func (agent *Agent) updateMetrics() {
 			metric.Value = valueFloat64
 			agent.metrics[mName] = metric
 		} else {
-			agent.metrics[mName] = Metric{mName, memstorage.GaugeMetric, 0, valueFloat64}
+			agent.metrics[mName] = Metric{ID: mName, MType: memstorage.GaugeMetric, Delta: 0, Value: valueFloat64}
 		}
 	}
 

@@ -10,14 +10,12 @@ const (
 )
 
 type MemStorage interface {
-	StoreMetric(mType string, name string, value any)
-	GetMetric(name string) (string, bool)
+	StoreMetric(mType string, name string, value any) any
+	GetMetric(name string) (any, bool)
 	GetAllMetricsAsString() string
 }
 
 type memStorage struct {
-	// storage["gauge"] -> map of gauge type metric values by name
-	// storage["counter"] -> map of counter metric values by name
 	storage map[string]interface{}
 }
 
@@ -27,29 +25,30 @@ func NewMemStorage() MemStorage {
 	return &memStorage{storage}
 }
 
-func (ms *memStorage) StoreMetric(mType string, name string, value any) {
+func (ms *memStorage) StoreMetric(mType string, name string, value any) any {
 	// fmt.Printf("StoreMetric: type=%v name=%v value=%v\r\n", mType, name, value)
 
 	if mType == GaugeMetric {
 		ms.storage[name] = value
-		return
+	} else {
+		if oldValue, present := ms.storage[name]; present {
+			ms.storage[name] = oldValue.(int64) + value.(int64)
+		} else {
+			ms.storage[name] = value.(int64)
+		}
 	}
 
-	if oldValue, present := ms.storage[name]; present {
-		ms.storage[name] = oldValue.(int64) + value.(int64)
-	} else {
-		ms.storage[name] = value.(int64)
-	}
+	return ms.storage[name]
 }
 
-func (ms *memStorage) GetMetric(name string) (string, bool) {
+func (ms *memStorage) GetMetric(name string) (any, bool) {
 	// fmt.Printf("GetMetric: name=%v\r\n", name)
 
 	if value, present := ms.storage[name]; present {
-		return fmt.Sprintf("%v", value), true
+		return value, true
 	}
 
-	return "", false
+	return nil, false
 }
 
 func (ms *memStorage) GetAllMetricsAsString() string {

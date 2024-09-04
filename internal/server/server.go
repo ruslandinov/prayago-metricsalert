@@ -7,17 +7,22 @@ import (
 	"net/http"
 	"prayago-metricsalert/internal/logger"
 	"prayago-metricsalert/internal/memstorage"
+	"prayago-metricsalert/internal/protocol"
 	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 )
 
-type Server struct {
-}
+type (
+	Metric = protocol.Metric
+	Server struct {
+	}
+)
 
 func NewServer(ms memstorage.MemStorage, config ServerConfig) *Server {
 	router := chi.NewRouter()
+
 	router.Get("/", logger.HTTPHandlerWithLogger(
 		func(res http.ResponseWriter, req *http.Request) {
 			getAllMetrics(ms, res, req)
@@ -51,7 +56,7 @@ func getMetric(ms memstorage.MemStorage, res http.ResponseWriter, req *http.Requ
 	mName := chi.URLParam(req, "mname")
 
 	if value, present := ms.GetMetric(mName); present {
-		io.WriteString(res, value)
+		io.WriteString(res, fmt.Sprintf("%v", value))
 		return
 	}
 
@@ -80,29 +85,41 @@ func updateMetric(ms memstorage.MemStorage, res http.ResponseWriter, req *http.R
 	res.WriteHeader(http.StatusOK)
 }
 
-func storeMetricValue(ms memstorage.MemStorage, mType string, mName string, mValue string) (bool, error) {
-	switch mType {
-	case memstorage.GaugeMetric:
-		mvalue, err := strconv.ParseFloat(strings.TrimSpace(mValue), 64)
-		if err != nil {
-			// TODO: use logger here
-			fmt.Printf("Wrong gauge metric value: %v\r\n", err)
-			return false, err
-		}
-		ms.StoreMetric(mType, mName, mvalue)
-
-	case memstorage.CounterMetric:
-		mvalue, err := strconv.ParseInt(strings.TrimSpace(mValue), 10, 64)
-		if err != nil {
-			// TODO: use logger here
-			fmt.Printf("Wrong counter metric value: %v\r\n", err)
-			return false, err
-		}
-		ms.StoreMetric(mType, mName, mvalue)
-
-	default:
-		return false, errors.New("wrong metric type, only gauge or counter are supported")
+func storeMetricValue(ms memstorage.MemStorage, mType string, mName string, mValue any) (any, error) {
+	typedValue, err := typeMetricValue(mType, mValue)
+	if err != nil {
+		logger.LogSugar.Infoln("storeMetricValue", "error", err)
+		return nil, err
 	}
 
-	return true, nil
+	return ms.StoreMetric(mType, mName, typedValue), nil
+}
+
+// used to handle text/plain and application/json ways of passing metrics value
+// text/plain -- metric value is passed as string
+// application/json -- after unmarshalling metric value MUST be either float64 or int64
+func typeMetricValue(mType string, value any) (any, error) {
+	// fmt.Printf("mType, value, value type: %v, %v, %v \r\n", mType, value, reflect.TypeOf(value))
+	switch assertedTypeValue := value.(type) {
+	case float64:
+		return value, nil
+	case int64:
+		return value, nil
+	case string:
+		if mType == memstorage.GaugeMetric {
+			typedValue, err := strconv.ParseFloat(strings.TrimSpace(assertedTypeValue), 64)
+			if err != nil {
+				return nil, err
+			}
+			return typedValue, nil
+		}
+
+		typedValue, err := strconv.ParseInt(strings.TrimSpace(assertedTypeValue), 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		return typedValue, nil
+	default:
+		return nil, errors.New("unsupported metric type")
+	}
 }

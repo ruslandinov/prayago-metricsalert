@@ -14,20 +14,23 @@ import (
 // т.к. сервер через DI получает ссылку на экземпляр MemoryStorage,
 // то объявим здесь мок MemoryStorage, чтобы не использовать настоящий инстанс в тестах
 type dummyMemStorage struct {
-	getMetricImpl             func(name string) (string, bool)
+	getMetricImpl             func(name string) (any, bool)
 	getAllMetricsAsStringImpl func() string
 }
 
-func (ms dummyMemStorage) StoreMetric(mType string, name string, value any) {
+func (ms dummyMemStorage) StoreMetric(mType string, name string, value any) any {
+	return nil
 }
-func (ms dummyMemStorage) GetMetric(name string) (string, bool) {
+
+func (ms dummyMemStorage) GetMetric(name string) (any, bool) {
 	// если в моке есть реализация метода -- используем ее, иначе отадим пустое значение
 	if ms.getMetricImpl != nil {
 		return ms.getMetricImpl(name)
 	}
 
-	return "", false
+	return nil, false
 }
+
 func (ms dummyMemStorage) GetAllMetricsAsString() string {
 	// если в моке есть реализация метода -- используем ее, иначе отадим пустую сроку
 	if ms.getAllMetricsAsStringImpl != nil {
@@ -131,12 +134,12 @@ func TestUpdateMetric(t *testing.T) {
 func TestGetMetric(t *testing.T) {
 	// для теста этого хендлера нам нужен мок, способный возвращать данные из хранилища
 	ms := dummyMemStorage{
-		getMetricImpl: func(name string) (string, bool) {
+		getMetricImpl: func(name string) (any, bool) {
 			if name == "existingMetric" {
 				return "42", true
 			}
 
-			return "", false
+			return nil, false
 		},
 	}
 
