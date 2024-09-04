@@ -124,9 +124,9 @@ func updateMetricJSON(ms memstorage.MemStorage, res http.ResponseWriter, req *ht
 	// TODO: should we validate metric values depending on metric type?
 	var mValue any
 	if metric.MType == memstorage.GaugeMetric {
-		mValue = metric.Value
+		mValue = *metric.Value
 	} else {
-		mValue = metric.Delta
+		mValue = *metric.Delta
 	}
 
 	var newValue any
@@ -135,9 +135,9 @@ func updateMetricJSON(ms memstorage.MemStorage, res http.ResponseWriter, req *ht
 	}
 
 	if metric.MType == memstorage.GaugeMetric {
-		metric.Value = newValue.(float64)
+		*metric.Value = newValue.(float64)
 	} else {
-		metric.Delta = newValue.(int64)
+		*metric.Delta = newValue.(int64)
 	}
 
 	metricMarshalled, err := json.Marshal(metric)
@@ -180,9 +180,11 @@ func getMetricJSON(ms memstorage.MemStorage, res http.ResponseWriter, req *http.
 		return
 	} else {
 		if metric.MType == memstorage.GaugeMetric {
-			metric.Value = value.(float64)
+			floatValue := value.(float64)
+			metric.Value = &floatValue
 		} else {
-			metric.Delta = value.(int64)
+			intValue := value.(int64)
+			metric.Delta = &intValue
 		}
 	}
 

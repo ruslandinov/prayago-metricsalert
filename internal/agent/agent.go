@@ -63,11 +63,14 @@ func NewAgent(config AgentConfig) *Agent {
 	fmt.Printf("Agent created.\r\n")
 
 	serverJSONPOSTUpdateURI = fmt.Sprintf("http://%s/update/", config.serverAddress)
+
+	var zeroInt int64 = 0
+	var zeroFloat float64 = 0
 	return &Agent{
 		config:      config,
 		metrics:     make(map[string]Metric),
-		pollCount:   Metric{ID: "PollCount", MType: memstorage.CounterMetric, Delta: 0, Value: 0},
-		randomValue: Metric{ID: "RandomValue", MType: memstorage.GaugeMetric, Delta: 0, Value: 0},
+		pollCount:   Metric{ID: "PollCount", MType: memstorage.CounterMetric, Delta: &zeroInt},
+		randomValue: Metric{ID: "RandomValue", MType: memstorage.GaugeMetric, Value: &zeroFloat},
 	}
 }
 
@@ -111,15 +114,15 @@ func (agent *Agent) updateMetrics() {
 		value := reflect.Indirect(reflectedMemStats).FieldByName(mName)
 		valueFloat64, _ := strconv.ParseFloat(fmt.Sprintf("%v", value), 64)
 		if metric, present := agent.metrics[mName]; present {
-			metric.Value = valueFloat64
+			metric.Value = &valueFloat64
 			agent.metrics[mName] = metric
 		} else {
-			agent.metrics[mName] = Metric{ID: mName, MType: memstorage.GaugeMetric, Delta: 0, Value: valueFloat64}
+			agent.metrics[mName] = Metric{ID: mName, MType: memstorage.GaugeMetric, Value: &valueFloat64}
 		}
 	}
 
-	agent.pollCount.Delta++
-	agent.randomValue.Value = rand.Float64()
+	*agent.pollCount.Delta++
+	*agent.randomValue.Value = rand.Float64()
 	// fmt.Printf("%v \r\n\r\n", agent.metrics)
 }
 
