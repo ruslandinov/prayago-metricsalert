@@ -35,14 +35,19 @@ func NewServer(ms memstorage.MemStorage, config ServerConfig) *Server {
 			getMetric(ms, res, req)
 		},
 	))
+	router.Post("/update/{mtype}/{mname}/{mvalue}", logger.HTTPHandlerWithLogger(
+		func(res http.ResponseWriter, req *http.Request) {
+			updateMetric(ms, res, req)
+		},
+	))
 	router.Post("/update/", logger.HTTPHandlerWithLogger(
 		func(res http.ResponseWriter, req *http.Request) {
 			updateMetricJSON(ms, res, req)
 		},
 	))
-	router.Post("/update/{mtype}/{mname}/{mvalue}", logger.HTTPHandlerWithLogger(
+	router.Post("/value/", logger.HTTPHandlerWithLogger(
 		func(res http.ResponseWriter, req *http.Request) {
-			updateMetric(ms, res, req)
+			getMetricJSON(ms, res, req)
 		},
 	))
 
@@ -133,6 +138,52 @@ func updateMetricJSON(ms memstorage.MemStorage, res http.ResponseWriter, req *ht
 		metric.Value = newValue.(float64)
 	} else {
 		metric.Delta = newValue.(int64)
+	}
+
+	metricMarshalled, err := json.Marshal(metric)
+	if err != nil {
+		http.Error(res, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	res.Header().Set("Content-Type", "application/json")
+	res.WriteHeader(http.StatusOK)
+	res.Write(metricMarshalled)
+}
+
+func getMetricJSON(ms memstorage.MemStorage, res http.ResponseWriter, req *http.Request) {
+	// TODO: extract content type check to middleware
+	ctHeader := req.Header.Get("Content-Type")
+	if ctHeader != "" {
+		contentType := strings.ToLower(strings.TrimSpace(strings.Split(ctHeader, ";")[0]))
+		if contentType != "application/json" {
+			http.Error(res, "Wrong content type", http.StatusBadRequest)
+		}
+	}
+
+	var buf bytes.Buffer
+	_, err := buf.ReadFrom(req.Body)
+	if err != nil {
+		http.Error(res, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	var metric Metric
+	if err = json.Unmarshal(buf.Bytes(), &metric); err != nil {
+		http.Error(res, err.Error(), http.StatusBadRequest)
+		return
+	}
+	// fmt.Printf("getMetricJSON: metric=%v\r\n", metric)
+
+	if value, present := ms.GetMetric(metric.ID); !present {
+		http.Error(res, "Wrong metric name.", http.StatusNotFound)
+		return
+	} else {
+		if metric.MType == memstorage.GaugeMetric {
+			metric.Value = value.(float64)
+		} else {
+			metric.Delta = value.(int64)
+		}
 	}
 
 	metricMarshalled, err := json.Marshal(metric)
