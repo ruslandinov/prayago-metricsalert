@@ -1,14 +1,16 @@
 package server
 
 import (
+	"errors"
 	"fmt"
-	"github.com/go-chi/chi/v5"
 	"io"
 	"net/http"
 	"prayago-metricsalert/internal/logger"
 	"prayago-metricsalert/internal/memstorage"
 	"strconv"
 	"strings"
+
+	"github.com/go-chi/chi/v5"
 )
 
 type Server struct {
@@ -70,28 +72,37 @@ func updateMetric(ms memstorage.MemStorage, res http.ResponseWriter, req *http.R
 	}
 
 	mtype := chi.URLParam(req, "mtype")
-	switch mtype {
-	case memstorage.GaugeMetric:
-		mvalue, err := strconv.ParseFloat(strings.TrimSpace(mvalueStr), 64)
-		if err != nil {
-			http.Error(res, fmt.Sprintf("Wrong metric value: %v\r\n", err), http.StatusBadRequest)
-			return
-		}
-		ms.StoreMetric(mtype, mname, mvalue)
-
-	case memstorage.CounterMetric:
-		mvalue, err := strconv.ParseInt(strings.TrimSpace(mvalueStr), 10, 64)
-		if err != nil {
-			http.Error(res, fmt.Sprintf("Wrong metric value: %v\r\n", err), http.StatusBadRequest)
-			return
-		}
-		ms.StoreMetric(mtype, mname, mvalue)
-
-	default:
-		http.Error(res, "Wrong metric type. Only gauge or counter are supported", http.StatusBadRequest)
-		return
+	if _, err := storeMetricValue(ms, mtype, mname, mvalueStr); err != nil {
+		http.Error(res, fmt.Sprintf("Wrong metric value: %v\r\n", err), http.StatusBadRequest)
 	}
 
 	res.Header().Set("content-type", "text/plain")
 	res.WriteHeader(http.StatusOK)
+}
+
+func storeMetricValue(ms memstorage.MemStorage, mType string, mName string, mValue string) (bool, error) {
+	switch mType {
+	case memstorage.GaugeMetric:
+		mvalue, err := strconv.ParseFloat(strings.TrimSpace(mValue), 64)
+		if err != nil {
+			// TODO: use logger here
+			fmt.Printf("Wrong gauge metric value: %v\r\n", err)
+			return false, err
+		}
+		ms.StoreMetric(mType, mName, mvalue)
+
+	case memstorage.CounterMetric:
+		mvalue, err := strconv.ParseInt(strings.TrimSpace(mValue), 10, 64)
+		if err != nil {
+			// TODO: use logger here
+			fmt.Printf("Wrong counter metric value: %v\r\n", err)
+			return false, err
+		}
+		ms.StoreMetric(mType, mName, mvalue)
+
+	default:
+		return false, errors.New("wrong metric type, only gauge or counter are supported")
+	}
+
+	return true, nil
 }
