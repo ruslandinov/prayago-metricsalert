@@ -93,7 +93,7 @@ func updateMetric(ms memstorage.MemStorage, res http.ResponseWriter, req *http.R
 		http.Error(res, fmt.Sprintf("Wrong metric value: %v\r\n", err), http.StatusBadRequest)
 	}
 
-	res.Header().Set("content-type", "text/plain")
+	res.Header().Set("Content-type", "text/plain")
 	res.WriteHeader(http.StatusOK)
 }
 
@@ -116,7 +116,7 @@ func updateMetricJSON(ms memstorage.MemStorage, res http.ResponseWriter, req *ht
 
 	var metric Metric
 	if err = json.Unmarshal(buf.Bytes(), &metric); err != nil {
-		http.Error(res, err.Error(), http.StatusBadRequest)
+		http.Error(res, "could not unmarshall JSON", http.StatusBadRequest)
 		return
 	}
 	// fmt.Printf("updateMetricJSON: metric=%v\r\n", metric)

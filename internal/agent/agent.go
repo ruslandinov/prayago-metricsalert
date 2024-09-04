@@ -127,8 +127,6 @@ func (agent *Agent) updateMetrics() {
 }
 
 func (agent *Agent) sendMetrics() {
-	// fmt.Printf("Agent sent metrics.\r\n")
-
 	var url string
 	for _, metric := range agent.metrics {
 		url = fmt.Sprintf("http://%s/update/%s/%s/%v",
@@ -136,7 +134,6 @@ func (agent *Agent) sendMetrics() {
 			metric.MType, metric.ID, *metric.Value,
 		)
 		doSendMetric(url)
-		// fmt.Printf("sendMetrics() url=%v\r\n", url)
 	}
 
 	// pollCount
@@ -154,19 +151,15 @@ func (agent *Agent) sendMetrics() {
 }
 
 func doSendMetric(url string) {
-	// fmt.Printf("doSendMetric() url=%v\r\n", url)
 	resp, err := http.Post(url, "text/plain", nil)
 	if err != nil {
 		// fmt.Printf("doSendMetric(): url=%v, error=%v\r\n", url, err)
 		return
 	}
 	defer resp.Body.Close()
-	// fmt.Printf("doSendMetric(): url=%v, resp=%v\r\n", url, resp)
 }
 
 func (agent *Agent) sendJSONMetrics() {
-	// fmt.Printf("Agent sent metrics.\r\n")
-
 	for _, metric := range agent.metrics {
 		doSendJSONMetric(metric)
 	}
@@ -176,8 +169,6 @@ func (agent *Agent) sendJSONMetrics() {
 }
 
 func doSendJSONMetric(metric Metric) {
-	// fmt.Printf("doSendJSONMetric() %v\r\n", metric)
-
 	jsonValue, _ := json.Marshal(metric)
 	// fmt.Printf("doSendJSONMetric(): %s\r\n", jsonValue)
 	resp, err := http.Post(serverJSONPOSTUpdateURI, "application/json", bytes.NewBuffer(jsonValue))
@@ -186,5 +177,4 @@ func doSendJSONMetric(metric Metric) {
 		return
 	}
 	defer resp.Body.Close()
-	// fmt.Printf("doSendJSONMetric(): url=%v, resp=%v\r\n", serverJSONPOSTUpdateURI, resp)
 }
