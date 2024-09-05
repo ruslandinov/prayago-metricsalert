@@ -40,16 +40,16 @@ func NewServer(ms memstorage.MemStorage, config ServerConfig) *Server {
 			updateMetric(ms, res, req)
 		},
 	)
-	router.Post("/update/", gzipMiddleware(
+	router.Post("/update/", gzipMiddleware(enforceContentTypeJSON(
 		func(res http.ResponseWriter, req *http.Request) {
 			updateMetricJSON(ms, res, req)
 		},
-	))
-	router.Post("/value/", gzipMiddleware(
+	)))
+	router.Post("/value/", gzipMiddleware(enforceContentTypeJSON(
 		func(res http.ResponseWriter, req *http.Request) {
 			getMetricJSON(ms, res, req)
 		},
-	))
+	)))
 
 	err := http.ListenAndServe(config.serverAddress, router)
 	if err != nil {
@@ -111,15 +111,6 @@ func updateMetric(ms memstorage.MemStorage, res http.ResponseWriter, req *http.R
 }
 
 func updateMetricJSON(ms memstorage.MemStorage, res http.ResponseWriter, req *http.Request) {
-	// TODO: extract content type check to middleware
-	ctHeader := req.Header.Get("Content-Type")
-	if ctHeader != "" {
-		contentType := strings.ToLower(strings.TrimSpace(strings.Split(ctHeader, ";")[0]))
-		if contentType != "application/json" {
-			http.Error(res, "Wrong content type", http.StatusBadRequest)
-		}
-	}
-
 	var buf bytes.Buffer
 	_, err := buf.ReadFrom(req.Body)
 	if err != nil {
@@ -165,15 +156,6 @@ func updateMetricJSON(ms memstorage.MemStorage, res http.ResponseWriter, req *ht
 }
 
 func getMetricJSON(ms memstorage.MemStorage, res http.ResponseWriter, req *http.Request) {
-	// TODO: extract content type check to middleware
-	ctHeader := req.Header.Get("Content-Type")
-	if ctHeader != "" {
-		contentType := strings.ToLower(strings.TrimSpace(strings.Split(ctHeader, ";")[0]))
-		if contentType != "application/json" {
-			http.Error(res, "Wrong content type", http.StatusBadRequest)
-		}
-	}
-
 	var buf bytes.Buffer
 	_, err := buf.ReadFrom(req.Body)
 	if err != nil {
