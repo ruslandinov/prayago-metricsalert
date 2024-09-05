@@ -20,11 +20,18 @@ func NewMetric(ID string, MType string) Metric {
 	var zeroInt int64 = 0
 	var zeroFloat float64 = 0
 
+	if MType == GaugeMetric {
+		return Metric{
+			ID:    ID,
+			MType: MType,
+			Value: &zeroFloat,
+		}
+	}
+
 	return Metric{
 		ID:    ID,
 		MType: MType,
 		Delta: &zeroInt,
-		Value: &zeroFloat,
 	}
 }
 
@@ -63,7 +70,7 @@ func (m Metric) UpdateValueStr(value string) error {
 
 func (m Metric) doUpdateWithFloatOrIntValue(value any) {
 	if m.MType == GaugeMetric {
-		*m.Value += value.(float64)
+		*m.Value = value.(float64)
 		return
 	}
 
