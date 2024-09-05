@@ -36,3 +36,6 @@ cmd_snippets.txt
 
 # Air config files
 *.toml
+
+# Metrics storage file
+storage.json
