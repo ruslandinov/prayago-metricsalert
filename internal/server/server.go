@@ -60,7 +60,20 @@ func NewServer(ms memstorage.MemStorage, config ServerConfig) *Server {
 }
 
 func getAllMetrics(ms memstorage.MemStorage, res http.ResponseWriter, _ *http.Request) {
-	io.WriteString(res, ms.GetAllMetricsAsString())
+	res.Header().Set("Content-Type", "text/html; charset=utf-8")
+	html := fmt.Sprintf("%s%s%s",
+		`
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Metrics</title>
+  </head>
+  <body>
+`, ms.GetAllMetricsAsString(),
+		`  </body>
+</html>`)
+	io.WriteString(res, html)
 }
 
 func getMetric(ms memstorage.MemStorage, res http.ResponseWriter, req *http.Request) {
