@@ -25,11 +25,11 @@ type (
 func NewServer(ms memstorage.MemStorage, config ServerConfig) *Server {
 	router := chi.NewRouter()
 	router.Use(HTTPHandlerWithLogger)
-	router.Get("/",
+	router.Get("/", gzipMiddleware(
 		func(res http.ResponseWriter, req *http.Request) {
 			getAllMetrics(ms, res, req)
 		},
-	)
+	))
 	router.Get("/value/{mtype}/{mname}",
 		func(res http.ResponseWriter, req *http.Request) {
 			getMetric(ms, res, req)
@@ -40,16 +40,16 @@ func NewServer(ms memstorage.MemStorage, config ServerConfig) *Server {
 			updateMetric(ms, res, req)
 		},
 	)
-	router.Post("/update/",
+	router.Post("/update/", gzipMiddleware(
 		func(res http.ResponseWriter, req *http.Request) {
 			updateMetricJSON(ms, res, req)
 		},
-	)
-	router.Post("/value/",
+	))
+	router.Post("/value/", gzipMiddleware(
 		func(res http.ResponseWriter, req *http.Request) {
 			getMetricJSON(ms, res, req)
 		},
-	)
+	))
 
 	err := http.ListenAndServe(config.serverAddress, router)
 	if err != nil {
