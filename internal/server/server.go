@@ -24,7 +24,7 @@ type (
 
 func NewServer(ms memstorage.MemStorage, config ServerConfig) *Server {
 	router := chi.NewRouter()
-	router.Use(logger.HTTPHandlerWithLogger)
+	router.Use(HTTPHandlerWithLogger)
 	router.Get("/",
 		func(res http.ResponseWriter, req *http.Request) {
 			getAllMetrics(ms, res, req)
