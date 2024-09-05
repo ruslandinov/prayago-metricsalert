@@ -1,8 +1,10 @@
 package memstorage
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	// "reflect"
 	"strconv"
 	"strings"
 )
@@ -15,6 +17,45 @@ type (
 		Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
 	}
 )
+
+func (m *Metric) UnmarshalJSON(data []byte) error {
+	// fmt.Printf("UnmarshalJSON start: %s\r\n", string(data[:]))
+
+	type MyMetricAlias Metric
+	aliasValue := &struct {
+		*MyMetricAlias
+		Value json.RawMessage `json:"value"`
+	}{
+		MyMetricAlias: (*MyMetricAlias)(m),
+	}
+
+	if err := json.Unmarshal(data, aliasValue); err != nil {
+		fmt.Printf("UnmarshalJSON error %v\r\n", err)
+		return err
+	}
+
+	// json.Marshall превращает 0.0(float64) в 0(int64)
+	// что приводит к тому, что при json.Unmarshall метрика типа gauge
+	// получает значение типа int64 и сервер в скором времени сыпется
+	// поэтому кастомный UnmarshalJSON
+	if m.MType == GaugeMetric && aliasValue.Value != nil {
+		var valueFloat64 float64
+		json.Unmarshal(aliasValue.Value, &valueFloat64)
+		m.Value = &valueFloat64
+	} else {
+		json.Unmarshal(aliasValue.Value, &m.Value)
+	}
+
+	// if m.Value != nil {
+	// 	fmt.Printf("UnmarshalJSON end: %v:%v\r\n", *m.Value, reflect.TypeOf(*m.Value))
+	// }
+
+	// if m.Delta != nil {
+	// 	fmt.Printf("UnmarshalJSON end: %v:%v\r\n", *m.Delta, reflect.TypeOf(*m.Delta))
+	// }
+
+	return nil
+}
 
 func NewMetric(ID string, MType string) Metric {
 	var zeroInt int64 = 0

@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"prayago-metricsalert/internal/logger"
+	"time"
 )
 
 const (
@@ -18,6 +20,7 @@ type MemStorage interface {
 	GetMetric(name string) (*Metric, error)
 	UpdateMetricValue(mType string, name string, value string) error
 	UpdateMetric(metric Metric) (*Metric, error)
+	SaveData()
 }
 
 type MemStorageConfig struct {
@@ -27,7 +30,20 @@ type MemStorageConfig struct {
 }
 
 type memStorage struct {
+	config  MemStorageConfig
 	storage map[string]Metric
+}
+
+func runStoreInteval(ms memStorage) {
+	fmt.Printf("runStoreInteval1\r\n")
+	time.AfterFunc(time.Millisecond*300, func() {
+		fmt.Printf("runStoreInteval2\r\n")
+
+		for {
+			time.Sleep(ms.config.StoreInterval)
+			go ms.SaveData()
+		}
+	})
 }
 
 func NewMemStorage(config MemStorageConfig) MemStorage {
@@ -36,7 +52,16 @@ func NewMemStorage(config MemStorageConfig) MemStorage {
 	logger.LogSugar.Infof("MemStorage created, config: %v", config)
 
 	memStorage := &memStorage{
+		config:  config,
 		storage: storage,
+	}
+
+	if config.ShouldRestore {
+		memStorage.restoreData()
+	}
+
+	if config.StoreInterval > 0 {
+		runStoreInteval(*memStorage)
 	}
 
 	return memStorage
@@ -82,6 +107,10 @@ func (ms *memStorage) UpdateMetricValue(mType string, name string, value string)
 		return err
 	}
 
+	if ms.config.StoreInterval == 0 {
+		ms.SaveData()
+	}
+
 	return nil
 }
 
@@ -104,5 +133,35 @@ func (ms *memStorage) UpdateMetric(metric Metric) (*Metric, error) {
 		return nil, err
 	}
 
+	if ms.config.StoreInterval == 0 {
+		ms.SaveData()
+	}
+
 	return &oldMetric, nil
+}
+
+func (ms *memStorage) SaveData() {
+	logger.LogSugar.Infoln("Memstorage saving to file", ms.config.FPath)
+
+	data, err := json.Marshal(ms.storage)
+	if err != nil {
+		logger.LogSugar.Errorf("error JSONing metrics: %v", err)
+	}
+
+	if err := os.WriteFile(ms.config.FPath, data, 0666); err != nil {
+		logger.LogSugar.Errorf("error saving file: %v", err)
+	}
+}
+
+func (ms *memStorage) restoreData() {
+	logger.LogSugar.Infoln("Memstorage restoring data from file", ms.config.FPath)
+
+	data, err := os.ReadFile(ms.config.FPath)
+	if err != nil {
+		logger.LogSugar.Errorf("error reading file: %v", err)
+	}
+
+	if err := json.Unmarshal(data, &ms.storage); err != nil {
+		logger.LogSugar.Errorf("error parsing JSONing metrics: %v", err)
+	}
 }
