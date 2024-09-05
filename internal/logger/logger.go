@@ -44,8 +44,8 @@ func init() {
 	LogSugar = logger.Sugar()
 }
 
-func HTTPHandlerWithLogger(h http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func HTTPHandlerWithLogger(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
 		respStats := &responseStats{
@@ -66,5 +66,5 @@ func HTTPHandlerWithLogger(h http.HandlerFunc) http.HandlerFunc {
 			"resp status", respStats.status,
 			"resp size", respStats.size,
 		)
-	}
+	})
 }
