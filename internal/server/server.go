@@ -3,26 +3,21 @@ package server
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"prayago-metricsalert/internal/logger"
 	"prayago-metricsalert/internal/memstorage"
-	"prayago-metricsalert/internal/protocol"
-	"strconv"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
 )
 
 type (
-	Metric = protocol.Metric
+	Metric = memstorage.Metric
 	Server struct {
 	}
 )
 
-func NewServer(ms memstorage.MemStorage, config ServerConfig) *Server {
+func NewServer(ms memstorage.MemStorage, config ServerConfig) (*Server, error) {
 	router := chi.NewRouter()
 	router.Use(HTTPHandlerWithLogger)
 	router.Get("/", gzipMiddleware(
@@ -51,12 +46,12 @@ func NewServer(ms memstorage.MemStorage, config ServerConfig) *Server {
 		},
 	)))
 
-	err := http.ListenAndServe(config.serverAddress, router)
+	err := http.ListenAndServe(config.ServerAddress, router)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	return &Server{}
+	return &Server{}, nil
 }
 
 func getAllMetrics(ms memstorage.MemStorage, res http.ResponseWriter, _ *http.Request) {
@@ -65,45 +60,47 @@ func getAllMetrics(ms memstorage.MemStorage, res http.ResponseWriter, _ *http.Re
 		`
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <title>Metrics</title>
-  </head>
-  <body>
+    <head>
+        <meta charset="utf-8">
+        <title>Metrics</title>
+    </head>
+    <body>
 `, ms.GetAllMetricsAsString(),
-		`  </body>
+		`   </body>
 </html>`)
 	io.WriteString(res, html)
 }
 
 func getMetric(ms memstorage.MemStorage, res http.ResponseWriter, req *http.Request) {
-	// mType := chi.URLParam(req, "mtype")
 	mName := chi.URLParam(req, "mname")
 
-	if value, present := ms.GetMetric(mName); present {
-		io.WriteString(res, fmt.Sprintf("%v", value))
+	value, err := ms.GetMetricValue(mName)
+	if err != nil {
+		http.Error(res, err.Error(), http.StatusNotFound)
 		return
 	}
 
-	http.Error(res, "Wrong metric name.", http.StatusNotFound)
+	res.Header().Set("Content-type", "text/plain")
+	res.WriteHeader(http.StatusOK)
+	io.WriteString(res, fmt.Sprintf("%v", value))
 }
 
 func updateMetric(ms memstorage.MemStorage, res http.ResponseWriter, req *http.Request) {
 	var mname string
 	if mname = chi.URLParam(req, "mname"); mname == "" {
-		http.Error(res, "Wrong metric name.", http.StatusNotFound)
+		http.Error(res, "empty metric name", http.StatusNotFound)
 		return
 	}
 
 	mvalueStr := chi.URLParam(req, "mvalue")
 	if mvalueStr == "" {
-		http.Error(res, "Empty metric value.", http.StatusBadRequest)
+		http.Error(res, "empty metric value", http.StatusBadRequest)
 		return
 	}
 
 	mtype := chi.URLParam(req, "mtype")
-	if _, err := storeMetricValue(ms, mtype, mname, mvalueStr); err != nil {
-		http.Error(res, fmt.Sprintf("Wrong metric value: %v\r\n", err), http.StatusBadRequest)
+	if err := ms.UpdateMetricValue(mtype, mname, mvalueStr); err != nil {
+		http.Error(res, err.Error(), http.StatusBadRequest)
 	}
 
 	res.Header().Set("Content-type", "text/plain")
@@ -123,36 +120,13 @@ func updateMetricJSON(ms memstorage.MemStorage, res http.ResponseWriter, req *ht
 		http.Error(res, "could not unmarshall JSON", http.StatusBadRequest)
 		return
 	}
-	// fmt.Printf("updateMetricJSON: metric=%v\r\n", metric)
 
-	// TODO: should we validate metric values depending on metric type?
-	var mValue any
-	if metric.MType == memstorage.GaugeMetric {
-		mValue = *metric.Value
-	} else {
-		mValue = *metric.Delta
-	}
-
-	var newValue any
-	if newValue, err = storeMetricValue(ms, metric.MType, metric.ID, mValue); err != nil {
-		http.Error(res, fmt.Sprintf("Wrong metric value: %v\r\n", err), http.StatusBadRequest)
-	}
-
-	if metric.MType == memstorage.GaugeMetric {
-		*metric.Value = newValue.(float64)
-	} else {
-		*metric.Delta = newValue.(int64)
-	}
-
-	metricMarshalled, err := json.Marshal(metric)
+	updatedMetric, err := ms.UpdateMetric(metric)
 	if err != nil {
-		http.Error(res, err.Error(), http.StatusInternalServerError)
-		return
+		http.Error(res, err.Error(), http.StatusBadRequest)
 	}
 
-	res.Header().Set("Content-Type", "application/json")
-	res.WriteHeader(http.StatusOK)
-	res.Write(metricMarshalled)
+	sendJSONedMetric(updatedMetric, res)
 }
 
 func getMetricJSON(ms memstorage.MemStorage, res http.ResponseWriter, req *http.Request) {
@@ -168,22 +142,18 @@ func getMetricJSON(ms memstorage.MemStorage, res http.ResponseWriter, req *http.
 		http.Error(res, err.Error(), http.StatusBadRequest)
 		return
 	}
-	// fmt.Printf("getMetricJSON: metric=%v\r\n", metric)
 
-	if value, present := ms.GetMetric(metric.ID); !present {
-		http.Error(res, "Wrong metric name.", http.StatusNotFound)
+	updatedMetric, err := ms.GetMetric(metric.ID)
+	if err != nil {
+		http.Error(res, err.Error(), http.StatusNotFound)
 		return
-	} else {
-		if metric.MType == memstorage.GaugeMetric {
-			floatValue := value.(float64)
-			metric.Value = &floatValue
-		} else {
-			intValue := value.(int64)
-			metric.Delta = &intValue
-		}
 	}
 
-	metricMarshalled, err := json.Marshal(metric)
+	sendJSONedMetric(updatedMetric, res)
+}
+
+func sendJSONedMetric(metric *Metric, res http.ResponseWriter) {
+	metricMarshalled, err := json.Marshal(&metric)
 	if err != nil {
 		http.Error(res, err.Error(), http.StatusInternalServerError)
 		return
@@ -192,47 +162,4 @@ func getMetricJSON(ms memstorage.MemStorage, res http.ResponseWriter, req *http.
 	res.Header().Set("Content-Type", "application/json")
 	res.WriteHeader(http.StatusOK)
 	res.Write(metricMarshalled)
-}
-
-func storeMetricValue(ms memstorage.MemStorage, mType string, mName string, mValue any) (any, error) {
-	if mType != memstorage.GaugeMetric && mType != memstorage.CounterMetric {
-		return nil, fmt.Errorf("unsupported metric type %s", mType)
-	}
-
-	typedValue, err := typeMetricValue(mType, mValue)
-	if err != nil {
-		logger.LogSugar.Infoln("storeMetricValue", "error", err)
-		return nil, err
-	}
-
-	return ms.StoreMetric(mType, mName, typedValue), nil
-}
-
-// used to handle text/plain and application/json ways of passing metrics value
-// text/plain -- metric value is passed as string
-// application/json -- after unmarshalling metric value MUST be either float64 or int64
-func typeMetricValue(mType string, value any) (any, error) {
-	// fmt.Printf("mType, value, value type: %v, %v, %v \r\n", mType, value, reflect.TypeOf(value))
-	switch assertedTypeValue := value.(type) {
-	case float64:
-		return value, nil
-	case int64:
-		return value, nil
-	case string:
-		if mType == memstorage.GaugeMetric {
-			typedValue, err := strconv.ParseFloat(strings.TrimSpace(assertedTypeValue), 64)
-			if err != nil {
-				return nil, err
-			}
-			return typedValue, nil
-		}
-
-		typedValue, err := strconv.ParseInt(strings.TrimSpace(assertedTypeValue), 10, 64)
-		if err != nil {
-			return nil, err
-		}
-		return typedValue, nil
-	default:
-		return nil, errors.New("unsupported metric type")
-	}
 }

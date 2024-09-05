@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"prayago-metricsalert/internal/logger"
 	"prayago-metricsalert/internal/memstorage"
-	"prayago-metricsalert/internal/protocol"
 	"reflect"
 	"runtime"
 	"strconv"
@@ -47,7 +46,7 @@ var needfulMemStats = [...]string{
 	"TotalAlloc",
 }
 
-type Metric = protocol.Metric
+type Metric = memstorage.Metric
 
 type Agent struct {
 	config      AgentConfig
@@ -67,13 +66,11 @@ func NewAgent(config AgentConfig) *Agent {
 
 	serverJSONPOSTUpdateURI = fmt.Sprintf("http://%s/update/", config.serverAddress)
 
-	var zeroInt int64 = 0
-	var zeroFloat float64 = 0
 	return &Agent{
 		config:      config,
 		metrics:     make(map[string]Metric),
-		pollCount:   Metric{ID: "PollCount", MType: memstorage.CounterMetric, Delta: &zeroInt},
-		randomValue: Metric{ID: "RandomValue", MType: memstorage.GaugeMetric, Value: &zeroFloat},
+		pollCount:   memstorage.NewMetric("PollCount", memstorage.CounterMetric),
+		randomValue: memstorage.NewMetric("RandomValue", memstorage.GaugeMetric),
 	}
 }
 
