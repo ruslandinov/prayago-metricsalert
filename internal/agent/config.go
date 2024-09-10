@@ -3,6 +3,7 @@ package agent
 import (
 	"flag"
 	"os"
+	"prayago-metricsalert/internal/logger"
 	"strconv"
 	"time"
 )
@@ -34,6 +35,8 @@ func NewAgentConfig() AgentConfig {
 			config.pollInterval = time.Duration(pollIntervalInt) * time.Second
 		}
 	}
+
+	logger.LogSugar.Infoln("Agent config:", config)
 
 	return config
 }

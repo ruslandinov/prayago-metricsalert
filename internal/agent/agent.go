@@ -1,12 +1,18 @@
 package agent
 
 import (
+	"bytes"
+	"compress/gzip"
+	"encoding/json"
 	"fmt"
+	"io"
 	"math/rand"
 	"net/http"
+	"prayago-metricsalert/internal/logger"
 	"prayago-metricsalert/internal/memstorage"
 	"reflect"
 	"runtime"
+	"strconv"
 	"time"
 )
 
@@ -40,39 +46,31 @@ var needfulMemStats = [...]string{
 	"TotalAlloc",
 }
 
-type Metric struct {
-	mType string
-	name  string
-	value string
-}
-
-type Metrics struct {
-	pollCount   int64
-	randomValue float64
-	list        map[string]Metric
-}
+type Metric = memstorage.Metric
 
 type Agent struct {
-	config   AgentConfig
-	memStats runtime.MemStats
-	metrics  Metrics
+	config      AgentConfig
+	memStats    runtime.MemStats
+	metrics     map[string]Metric
+	pollCount   Metric
+	randomValue Metric
 }
 
 const pollCount = "PollCount"
 const randomValue = "RandomValue"
 
+var serverJSONPOSTUpdateURI string
+
 func NewAgent(config AgentConfig) *Agent {
 	fmt.Printf("Agent created.\r\n")
 
-	var metrics = Metrics{
-		pollCount:   0,
-		randomValue: 0,
-		list:        make(map[string]Metric),
-	}
+	serverJSONPOSTUpdateURI = fmt.Sprintf("http://%s/update/", config.serverAddress)
 
 	return &Agent{
-		config:  config,
-		metrics: metrics,
+		config:      config,
+		metrics:     make(map[string]Metric),
+		pollCount:   memstorage.NewMetric("PollCount", memstorage.CounterMetric),
+		randomValue: memstorage.NewMetric("RandomValue", memstorage.GaugeMetric),
 	}
 }
 
@@ -98,6 +96,7 @@ func (agent *Agent) startSending() {
 	for {
 		time.Sleep(agent.config.reportInterval)
 		agent.sendMetrics()
+		agent.sendJSONMetrics()
 	}
 }
 
@@ -113,52 +112,96 @@ func (agent *Agent) updateMetrics() {
 	// but I'm doing it in my way ;)
 	for _, mName := range needfulMemStats {
 		value := reflect.Indirect(reflectedMemStats).FieldByName(mName)
-		if metric, present := agent.metrics.list[mName]; present {
-			metric.value = fmt.Sprintf("%v", value)
-			agent.metrics.list[mName] = metric
+		valueFloat64, _ := strconv.ParseFloat(fmt.Sprintf("%v", value), 64)
+		if metric, present := agent.metrics[mName]; present {
+			metric.Value = &valueFloat64
+			agent.metrics[mName] = metric
 		} else {
-			agent.metrics.list[mName] = Metric{memstorage.GaugeMetric, mName, fmt.Sprintf("%v", value)}
+			agent.metrics[mName] = Metric{ID: mName, MType: memstorage.GaugeMetric, Value: &valueFloat64}
 		}
 	}
 
-	agent.metrics.pollCount++
-	agent.metrics.randomValue = rand.Float64()
+	*agent.pollCount.Delta++
+	*agent.randomValue.Value = rand.Float64()
+	// fmt.Printf("%v \r\n\r\n", agent.metrics)
 }
 
 func (agent *Agent) sendMetrics() {
-	// fmt.Printf("Agent sent metrics.\r\n")
-
 	var url string
-	for _, metric := range agent.metrics.list {
-		url = fmt.Sprintf("http://%s/update/%s/%s/%s",
+	for _, metric := range agent.metrics {
+		url = fmt.Sprintf("http://%s/update/%s/%s/%v",
 			agent.config.serverAddress,
-			metric.mType, metric.name, metric.value,
+			metric.MType, metric.ID, *metric.Value,
 		)
 		doSendMetric(url)
-		// fmt.Printf("sendMetrics() url=%v\r\n", url)
 	}
 
 	// pollCount
 	url = fmt.Sprintf("http://%s/update/%s/%s/%v",
 		agent.config.serverAddress,
-		memstorage.CounterMetric, pollCount, agent.metrics.pollCount,
+		memstorage.CounterMetric, pollCount, *agent.pollCount.Delta,
 	)
 	doSendMetric(url)
 	// randomValue
 	url = fmt.Sprintf("http://%s/update/%s/%s/%v",
 		agent.config.serverAddress,
-		memstorage.GaugeMetric, randomValue, agent.metrics.randomValue,
+		memstorage.GaugeMetric, randomValue, *agent.randomValue.Value,
 	)
 	doSendMetric(url)
 }
 
 func doSendMetric(url string) {
-	// fmt.Printf("doSendMetric() url=%v\r\n", url)
 	resp, err := http.Post(url, "text/plain", nil)
 	if err != nil {
-		// fmt.Printf("doSendMetric(): url=%v, error=%v\r\n", url, err)
+		logger.LogSugar.Errorf("doSendMetric(): url=%v, error=%v\r\n", url, err)
 		return
 	}
 	defer resp.Body.Close()
-	// fmt.Printf("doSendMetric(): url=%v, resp=%v\r\n", url, resp)
+}
+
+func (agent *Agent) sendJSONMetrics() {
+	for _, metric := range agent.metrics {
+		doSendJSONMetric(metric)
+	}
+
+	doSendJSONMetric(agent.pollCount)
+	doSendJSONMetric(agent.randomValue)
+}
+
+func doSendJSONMetric(metric Metric) {
+	jsonValue, _ := json.Marshal(metric)
+
+	var gzippedBytes bytes.Buffer
+	gzipper := gzip.NewWriter(&gzippedBytes)
+	gzipOk := false
+	if _, err := gzipper.Write(jsonValue); err == nil {
+		if err := gzipper.Close(); err == nil {
+			gzipOk = true
+		}
+	}
+
+	var req *http.Request
+	if gzipOk {
+		req, _ = http.NewRequest("POST", serverJSONPOSTUpdateURI, &gzippedBytes)
+		req.Header.Add("Content-Encoding", "gzip")
+	} else {
+		// resp, err := http.Post(serverJSONPOSTUpdateURI, "application/json", bytes.NewBuffer(jsonValue))
+		req, _ = http.NewRequest("POST", serverJSONPOSTUpdateURI, bytes.NewBuffer(jsonValue))
+	}
+
+	req.Header.Add("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		logger.LogSugar.Errorln("doSendJSONMetric", "error", err)
+		return
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		logger.LogSugar.Warnln("doSendJSONMetric",
+			"status:", resp.StatusCode,
+			"response:", string(bodyBytes),
+		)
+	}
+	defer resp.Body.Close()
 }

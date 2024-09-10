@@ -24,11 +24,18 @@ vendor/
 .idea
 .vscode
 
-# Autotest binary
+# Autotest & statictest binary
 metricstest
+statictest
 
 # Temp dir
 tmp/
 
 # Personal file with command line snippets for debug purposes
 cmd_snippets.txt
+
+# Air config files
+*.toml
+
+# Metrics storage file
+storage.json

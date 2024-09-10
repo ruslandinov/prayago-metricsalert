@@ -1,40 +1,69 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"prayago-metricsalert/internal/chimocker"
+	"prayago-metricsalert/internal/memstorage"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // т.к. сервер через DI получает ссылку на экземпляр MemoryStorage,
 // то объявим здесь мок MemoryStorage, чтобы не использовать настоящий инстанс в тестах
 type dummyMemStorage struct {
-	getMetricImpl             func(name string) (string, bool)
-	getAllMetricsAsStringImpl func() string
+	getMetricValueImpl func(name string) (any, error)
 }
 
-func (ms dummyMemStorage) StoreMetric(mType string, name string, value any) {
-}
-func (ms dummyMemStorage) GetMetric(name string) (string, bool) {
-	// если в моке есть реализация метода -- используем ее, иначе отадим пустое значение
-	if ms.getMetricImpl != nil {
-		return ms.getMetricImpl(name)
-	}
-
-	return "", false
-}
 func (ms dummyMemStorage) GetAllMetricsAsString() string {
-	// если в моке есть реализация метода -- используем ее, иначе отадим пустую сроку
-	if ms.getAllMetricsAsStringImpl != nil {
-		return ms.getAllMetricsAsStringImpl()
+	return ""
+}
+
+func (ms dummyMemStorage) GetMetricValue(name string) (any, error) {
+	// если в моке есть реализация метода -- используем ее, иначе отадим пустое значение
+	if ms.getMetricValueImpl != nil {
+		return ms.getMetricValueImpl(name)
 	}
 
-	return ""
+	return nil, nil
+}
+
+func (ms dummyMemStorage) GetMetric(name string) (*Metric, error) {
+	return nil, nil
+}
+
+func (ms dummyMemStorage) UpdateMetricValue(mType string, name string, value string) error {
+	if name == "" {
+		return errors.New("")
+	}
+
+	if mType != memstorage.GaugeMetric && mType != memstorage.CounterMetric {
+		return errors.New("")
+	}
+
+	metric := memstorage.NewMetric(name, mType)
+	err := metric.UpdateValueStr(value)
+	return err
+}
+
+func (ms dummyMemStorage) UpdateMetric(metric Metric) (*Metric, error) {
+	if metric.ID == "" {
+		return nil, errors.New("")
+	}
+
+	if metric.MType != memstorage.GaugeMetric && metric.MType != memstorage.CounterMetric {
+		return nil, errors.New("")
+	}
+
+	return nil, nil
+}
+
+func (ms dummyMemStorage) SaveData() {
 }
 
 func TestUpdateMetric(t *testing.T) {
@@ -131,12 +160,12 @@ func TestUpdateMetric(t *testing.T) {
 func TestGetMetric(t *testing.T) {
 	// для теста этого хендлера нам нужен мок, способный возвращать данные из хранилища
 	ms := dummyMemStorage{
-		getMetricImpl: func(name string) (string, bool) {
+		getMetricValueImpl: func(name string) (any, error) {
 			if name == "existingMetric" {
-				return "42", true
+				return "42", nil
 			}
 
-			return "", false
+			return nil, fmt.Errorf("value not found")
 		},
 	}
 
@@ -165,7 +194,7 @@ func TestGetMetric(t *testing.T) {
 			mName: "unknownMetric",
 			want: want{
 				code:     http.StatusNotFound,
-				response: "Wrong metric name.\n",
+				response: "value not found\n",
 			},
 		},
 	}
