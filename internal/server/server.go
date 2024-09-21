@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"prayago-metricsalert/internal/dbstorage"
 	"prayago-metricsalert/internal/memstorage"
 
 	"github.com/go-chi/chi/v5"
@@ -25,6 +26,11 @@ func NewServer(config ServerConfig, ms memstorage.MemStorage, dbs dbstorage.DBSt
 			getAllMetrics(ms, res, req)
 		},
 	))
+	router.Get("/ping",
+		func(res http.ResponseWriter, req *http.Request) {
+			ping(dbs, res, req)
+		},
+	)
 	router.Get("/value/{mtype}/{mname}",
 		func(res http.ResponseWriter, req *http.Request) {
 			getMetric(ms, res, req)
@@ -69,6 +75,15 @@ func getAllMetrics(ms memstorage.MemStorage, res http.ResponseWriter, _ *http.Re
 		`   </body>
 </html>`)
 	io.WriteString(res, html)
+}
+
+func ping(dbs dbstorage.DBStorager, res http.ResponseWriter, _ *http.Request) {
+	if dbs.Ping() {
+		res.WriteHeader(http.StatusOK)
+		return
+	}
+
+	http.Error(res, "No database connection", http.StatusInternalServerError)
 }
 
 func getMetric(ms memstorage.MemStorage, res http.ResponseWriter, req *http.Request) {
