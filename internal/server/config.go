@@ -25,10 +25,10 @@ func NewServerConfig() ServerConfig {
 	flag.Parse()
 
 	config := ServerConfig{
-		ServerAddress: *a,
-		StorageFPath: *f,
-		DBConnectionString: *d,
-		StoreInterval: time.Duration(*i) * time.Second,
+		ServerAddress:         *a,
+		StorageFPath:          *f,
+		DBConnectionString:    *d,
+		StoreInterval:         time.Duration(*i) * time.Second,
 		RestoreStorageOnStart: *r,
 	}
 
