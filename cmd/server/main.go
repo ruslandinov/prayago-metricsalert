@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"os/signal"
+	"prayago-metricsalert/internal/dbstorage"
 	"prayago-metricsalert/internal/logger"
 	"prayago-metricsalert/internal/memstorage"
 	"prayago-metricsalert/internal/server"
@@ -14,6 +15,7 @@ func main() {
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 
 	var ms memstorage.MemStorage
+	var dbs dbstorage.DBStorager
 	go func() {
 		config := server.NewServerConfig()
 		logger.LogSugar.Infoln("Starting server on", config.ServerAddress)
@@ -25,7 +27,12 @@ func main() {
 		}
 		ms = memstorage.NewMemStorage(msConfig)
 
-		if _, err := server.NewServer(ms, config); err != nil {
+		dbsConfig := dbstorage.DBStorageConfig{
+			ConnectionString: config.DBConnectionString,
+		}
+		dbs = dbstorage.NewDBStorage(dbsConfig)
+
+		if _, err := server.NewServer(config, ms, dbs); err != nil {
 			logger.LogSugar.Error("Failed to start server:", err)
 			logger.LogSugar.Fatalf("Failed to start server:", err)
 		}
@@ -36,6 +43,7 @@ func main() {
 	logger.LogSugar.Info("Shutting down server...")
 	logger.LogSugar.Info("Saving data...")
 	ms.SaveData()
+	dbs.Close()
 
 	logger.LogSugar.Info("Server exiting")
 }

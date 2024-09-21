@@ -17,7 +17,7 @@ type (
 	}
 )
 
-func NewServer(ms memstorage.MemStorage, config ServerConfig) (*Server, error) {
+func NewServer(config ServerConfig, ms memstorage.MemStorage, dbs dbstorage.DBStorager) (*Server, error) {
 	router := chi.NewRouter()
 	router.Use(HTTPHandlerWithLogger)
 	router.Get("/", gzipMiddleware(
