@@ -35,10 +35,7 @@ type memStorage struct {
 }
 
 func runStoreInteval(ms memStorage) {
-	fmt.Printf("runStoreInteval1\r\n")
 	time.AfterFunc(time.Millisecond*300, func() {
-		fmt.Printf("runStoreInteval2\r\n")
-
 		for {
 			time.Sleep(ms.config.StoreInterval)
 			go ms.SaveData()
