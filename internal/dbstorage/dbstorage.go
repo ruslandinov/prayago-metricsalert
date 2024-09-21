@@ -9,25 +9,27 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-type DBStorageConfig struct {
-	ConnectionString string
-}
+type (
+	DBStorageConfig struct {
+		ConnectionString string
+	}
 
-type DBStorage struct {
-	config DBStorageConfig
-	db     *sql.DB
-}
+	DBStorage struct {
+		config DBStorageConfig
+		db     *sql.DB
+	}
 
-type DBStorager interface {
-	Close()
-	Ping() bool
-}
+	DBStorager interface {
+		Close()
+		Ping() bool
+	}
+)
 
 func NewDBStorage(config DBStorageConfig) DBStorager {
 	fmt.Printf("NewDBStorage config: %v\r\n", config)
 	db, err := sql.Open("pgx", config.ConnectionString)
 	if err != nil {
-		fmt.Printf("Ошибка подключения к БД: %v", err)
+		fmt.Printf("Ошибка подключения к БД: %v\r\n", err)
 	}
 
 	dbstorage := &DBStorage{
