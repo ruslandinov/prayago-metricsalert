@@ -9,66 +9,70 @@ import (
 	"testing"
 
 	"prayago-metricsalert/internal/chimocker"
-	"prayago-metricsalert/internal/memstorage"
+	"prayago-metricsalert/internal/metrics"
 
 	"github.com/stretchr/testify/assert"
 )
 
-// т.к. сервер через DI получает ссылку на экземпляр MemoryStorage,
-// то объявим здесь мок MemoryStorage, чтобы не использовать настоящий инстанс в тестах
-type dummyMemStorage struct {
+// т.к. сервер через DI получает ссылку на экземпляр Storage,
+// то объявим здесь мок Storage, чтобы не использовать настоящий инстанс в тестах
+type dummyStorage struct {
 	getMetricValueImpl func(name string) (any, error)
 }
 
-func (ms dummyMemStorage) GetAllMetricsAsString() string {
+func (store dummyStorage) GetAllMetricsAsString() string {
 	return ""
 }
 
-func (ms dummyMemStorage) GetMetricValue(name string) (any, error) {
+func (store dummyStorage) GetMetricValue(name string) (any, error) {
 	// если в моке есть реализация метода -- используем ее, иначе отадим пустое значение
-	if ms.getMetricValueImpl != nil {
-		return ms.getMetricValueImpl(name)
+	if store.getMetricValueImpl != nil {
+		return store.getMetricValueImpl(name)
 	}
 
 	return nil, nil
 }
 
-func (ms dummyMemStorage) GetMetric(name string) (*Metric, error) {
+func (store dummyStorage) GetMetric(name string) (*Metric, error) {
 	return nil, nil
 }
 
-func (ms dummyMemStorage) UpdateMetricValue(mType string, name string, value string) error {
+func (store dummyStorage) UpdateMetricValue(mType string, name string, value string) error {
 	if name == "" {
 		return errors.New("")
 	}
 
-	if mType != memstorage.GaugeMetric && mType != memstorage.CounterMetric {
+	if mType != metrics.GaugeMetric && mType != metrics.CounterMetric {
 		return errors.New("")
 	}
 
-	metric := memstorage.NewMetric(name, mType)
+	metric := metrics.NewMetric(name, mType)
 	err := metric.UpdateValueStr(value)
 	return err
 }
 
-func (ms dummyMemStorage) UpdateMetric(metric Metric) (*Metric, error) {
+func (store dummyStorage) UpdateMetric(metric Metric) (*Metric, error) {
 	if metric.ID == "" {
 		return nil, errors.New("")
 	}
 
-	if metric.MType != memstorage.GaugeMetric && metric.MType != memstorage.CounterMetric {
+	if metric.MType != metrics.GaugeMetric && metric.MType != metrics.CounterMetric {
 		return nil, errors.New("")
 	}
 
 	return nil, nil
 }
 
-func (ms dummyMemStorage) SaveData() {
+func (store dummyStorage) SaveData() {
+}
+
+func (store dummyStorage) Ping() bool {
+	return true
 }
 
 func TestUpdateMetric(t *testing.T) {
 	// для теста этого хендлера нам сойдет максимально простой мок
-	ms := dummyMemStorage{}
+	store := dummyStorage{}
 
 	type want struct {
 		code     int
@@ -147,7 +151,7 @@ func TestUpdateMetric(t *testing.T) {
 			// https://haykot.dev/blog/til-testing-parametrized-urls-with-chi-router/
 			urlParams := chimocker.URLParams{"mtype": test.mType, "mname": test.mName, "mvalue": test.mValue}
 			request = chimocker.WithURLParams(request, urlParams)
-			updateMetric(ms, w, request)
+			updateMetric(store, w, request)
 
 			res := w.Result()
 			defer res.Body.Close()
@@ -159,7 +163,7 @@ func TestUpdateMetric(t *testing.T) {
 
 func TestGetMetric(t *testing.T) {
 	// для теста этого хендлера нам нужен мок, способный возвращать данные из хранилища
-	ms := dummyMemStorage{
+	store := dummyStorage{
 		getMetricValueImpl: func(name string) (any, error) {
 			if name == "existingMetric" {
 				return "42", nil
@@ -210,7 +214,7 @@ func TestGetMetric(t *testing.T) {
 			urlParams := chimocker.URLParams{"mtype": test.mType, "mname": test.mName}
 			request = chimocker.WithURLParams(request, urlParams)
 
-			getMetric(ms, w, request)
+			getMetric(store, w, request)
 
 			res := w.Result()
 			defer res.Body.Close()

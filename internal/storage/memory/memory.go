@@ -1,4 +1,4 @@
-package memstorage
+package memory
 
 import (
 	"encoding/json"
@@ -6,22 +6,11 @@ import (
 	"fmt"
 	"os"
 	"prayago-metricsalert/internal/logger"
+	"prayago-metricsalert/internal/metrics"
 	"time"
 )
 
-const (
-	GaugeMetric   = "gauge"
-	CounterMetric = "counter"
-)
-
-type MemStorage interface {
-	GetAllMetricsAsString() string
-	GetMetricValue(name string) (any, error)
-	GetMetric(name string) (*Metric, error)
-	UpdateMetricValue(mType string, name string, value string) error
-	UpdateMetric(metric Metric) (*Metric, error)
-	SaveData()
-}
+type Metric = metrics.Metric
 
 type MemStorageConfig struct {
 	FPath         string
@@ -29,12 +18,12 @@ type MemStorageConfig struct {
 	ShouldRestore bool
 }
 
-type memStorage struct {
+type MemStorage struct {
 	config  MemStorageConfig
 	storage map[string]Metric
 }
 
-func runStoreInteval(ms memStorage) {
+func runStoreInteval(ms MemStorage) {
 	time.AfterFunc(time.Millisecond*300, func() {
 		for {
 			time.Sleep(ms.config.StoreInterval)
@@ -48,7 +37,7 @@ func NewMemStorage(config MemStorageConfig) MemStorage {
 
 	logger.LogSugar.Infof("MemStorage created, config: %v", config)
 
-	memStorage := &memStorage{
+	memStorage := MemStorage{
 		config:  config,
 		storage: storage,
 	}
@@ -58,30 +47,30 @@ func NewMemStorage(config MemStorageConfig) MemStorage {
 	}
 
 	if config.StoreInterval > 0 {
-		runStoreInteval(*memStorage)
+		runStoreInteval(memStorage)
 	}
 
 	return memStorage
 }
 
-func (ms *memStorage) GetAllMetricsAsString() string {
+func (ms MemStorage) GetAllMetricsAsString() string {
 	s := ""
 	for _, metric := range ms.storage {
-		s += fmt.Sprintf("%s|%s|%s|\r\n", metric.ID, metric.MType, metric.getValueStr())
+		s += fmt.Sprintf("%s|%s|%s|\r\n", metric.ID, metric.MType, metric.GetValueStr())
 	}
 
 	return s
 }
 
-func (ms *memStorage) GetMetricValue(name string) (any, error) {
+func (ms MemStorage) GetMetricValue(name string) (any, error) {
 	if metric, present := ms.storage[name]; present {
-		return metric.getValue(), nil
+		return metric.GetValue(), nil
 	}
 
 	return nil, errors.New("metric not found")
 }
 
-func (ms *memStorage) GetMetric(name string) (*Metric, error) {
+func (ms MemStorage) GetMetric(name string) (*Metric, error) {
 	if metric, present := ms.storage[name]; present {
 		return &metric, nil
 	}
@@ -89,14 +78,14 @@ func (ms *memStorage) GetMetric(name string) (*Metric, error) {
 	return nil, errors.New("metric not found")
 }
 
-func (ms *memStorage) UpdateMetricValue(mType string, name string, value string) error {
-	if mType != GaugeMetric && mType != CounterMetric {
+func (ms MemStorage) UpdateMetricValue(mType string, name string, value string) error {
+	if mType != metrics.GaugeMetric && mType != metrics.CounterMetric {
 		return fmt.Errorf("unsupported metric type %s", mType)
 	}
 
 	metric, present := ms.storage[name]
 	if !present {
-		metric = NewMetric(name, mType)
+		metric = metrics.NewMetric(name, mType)
 		ms.storage[name] = metric
 	}
 
@@ -111,8 +100,8 @@ func (ms *memStorage) UpdateMetricValue(mType string, name string, value string)
 	return nil
 }
 
-func (ms *memStorage) UpdateMetric(metric Metric) (*Metric, error) {
-	if metric.MType != GaugeMetric && metric.MType != CounterMetric {
+func (ms MemStorage) UpdateMetric(metric Metric) (*Metric, error) {
+	if metric.MType != metrics.GaugeMetric && metric.MType != metrics.CounterMetric {
 		return nil, fmt.Errorf("unsupported metric type %s", metric.MType)
 	}
 
@@ -126,7 +115,7 @@ func (ms *memStorage) UpdateMetric(metric Metric) (*Metric, error) {
 		return &metric, nil
 	}
 
-	if err := oldMetric.UpdateValueNum(metric.getValue()); err != nil {
+	if err := oldMetric.UpdateValueNum(metric.GetValue()); err != nil {
 		return nil, err
 	}
 
@@ -137,7 +126,8 @@ func (ms *memStorage) UpdateMetric(metric Metric) (*Metric, error) {
 	return &oldMetric, nil
 }
 
-func (ms *memStorage) SaveData() {
+func (ms MemStorage) SaveData() {
+	logger.LogSugar.Infof("Memstorage saving, config %v", ms.config)
 	logger.LogSugar.Infoln("Memstorage saving to file", ms.config.FPath)
 
 	data, err := json.Marshal(ms.storage)
@@ -150,7 +140,7 @@ func (ms *memStorage) SaveData() {
 	}
 }
 
-func (ms *memStorage) restoreData() {
+func (ms MemStorage) restoreData() {
 	logger.LogSugar.Infoln("Memstorage restoring data from file", ms.config.FPath)
 
 	data, err := os.ReadFile(ms.config.FPath)

@@ -1,12 +1,16 @@
-package memstorage
+package metrics
 
 import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	// "reflect"
 	"strconv"
 	"strings"
+)
+
+const (
+	GaugeMetric   = "gauge"
+	CounterMetric = "counter"
 )
 
 type (
@@ -76,7 +80,7 @@ func NewMetric(ID string, MType string) Metric {
 	}
 }
 
-func (m Metric) getValue() any {
+func (m Metric) GetValue() any {
 	if m.MType == GaugeMetric {
 		return *m.Value
 	}
@@ -84,7 +88,7 @@ func (m Metric) getValue() any {
 	return *m.Delta
 }
 
-func (m Metric) getValueStr() string {
+func (m Metric) GetValueStr() string {
 	if m.MType == GaugeMetric {
 		return strconv.FormatFloat(*m.Value, 'f', -1, 64)
 	}

@@ -9,7 +9,7 @@ import (
 	"math/rand"
 	"net/http"
 	"prayago-metricsalert/internal/logger"
-	"prayago-metricsalert/internal/memstorage"
+	"prayago-metricsalert/internal/metrics"
 	"reflect"
 	"runtime"
 	"strconv"
@@ -46,7 +46,7 @@ var needfulMemStats = [...]string{
 	"TotalAlloc",
 }
 
-type Metric = memstorage.Metric
+type Metric = metrics.Metric
 
 type Agent struct {
 	config      AgentConfig
@@ -62,20 +62,20 @@ const randomValue = "RandomValue"
 var serverJSONPOSTUpdateURI string
 
 func NewAgent(config AgentConfig) *Agent {
-	fmt.Printf("Agent created.\r\n")
+	logger.LogSugar.Infoln("Agent created.\r\n")
 
 	serverJSONPOSTUpdateURI = fmt.Sprintf("http://%s/update/", config.serverAddress)
 
 	return &Agent{
 		config:      config,
 		metrics:     make(map[string]Metric),
-		pollCount:   memstorage.NewMetric("PollCount", memstorage.CounterMetric),
-		randomValue: memstorage.NewMetric("RandomValue", memstorage.GaugeMetric),
+		pollCount:   metrics.NewMetric("PollCount", metrics.CounterMetric),
+		randomValue: metrics.NewMetric("RandomValue", metrics.GaugeMetric),
 	}
 }
 
 func (agent *Agent) Run() {
-	fmt.Printf("Agent started.\r\n")
+	logger.LogSugar.Infoln("Agent started.\r\n")
 	go agent.startPolling()
 	go agent.startSending()
 	for {
@@ -84,7 +84,7 @@ func (agent *Agent) Run() {
 }
 
 func (agent *Agent) startPolling() {
-	fmt.Printf("Agent started polling. %v\r\n", agent.config.pollInterval)
+	logger.LogSugar.Infof("Agent started polling. %v\r\n", agent.config.pollInterval)
 	for {
 		time.Sleep(agent.config.pollInterval)
 		agent.updateMetrics()
@@ -92,7 +92,7 @@ func (agent *Agent) startPolling() {
 }
 
 func (agent *Agent) startSending() {
-	fmt.Printf("Agent started sending. %v\r\n", agent.config.reportInterval)
+	logger.LogSugar.Infof("Agent started sending. %v\r\n", agent.config.reportInterval)
 	for {
 		time.Sleep(agent.config.reportInterval)
 		agent.sendMetrics()
@@ -117,7 +117,7 @@ func (agent *Agent) updateMetrics() {
 			metric.Value = &valueFloat64
 			agent.metrics[mName] = metric
 		} else {
-			agent.metrics[mName] = Metric{ID: mName, MType: memstorage.GaugeMetric, Value: &valueFloat64}
+			agent.metrics[mName] = Metric{ID: mName, MType: metrics.GaugeMetric, Value: &valueFloat64}
 		}
 	}
 
@@ -139,13 +139,13 @@ func (agent *Agent) sendMetrics() {
 	// pollCount
 	url = fmt.Sprintf("http://%s/update/%s/%s/%v",
 		agent.config.serverAddress,
-		memstorage.CounterMetric, pollCount, *agent.pollCount.Delta,
+		metrics.CounterMetric, pollCount, *agent.pollCount.Delta,
 	)
 	doSendMetric(url)
 	// randomValue
 	url = fmt.Sprintf("http://%s/update/%s/%s/%v",
 		agent.config.serverAddress,
-		memstorage.GaugeMetric, randomValue, *agent.randomValue.Value,
+		metrics.GaugeMetric, randomValue, *agent.randomValue.Value,
 	)
 	doSendMetric(url)
 }
