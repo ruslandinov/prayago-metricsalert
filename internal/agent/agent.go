@@ -59,12 +59,14 @@ type Agent struct {
 const pollCount = "PollCount"
 const randomValue = "RandomValue"
 
-var serverJSONPOSTUpdateURI string
+var updateMetricURI string
+var batchUpdateMetricsURI string
 
 func NewAgent(config AgentConfig) *Agent {
 	logger.LogSugar.Infoln("Agent created")
 
-	serverJSONPOSTUpdateURI = fmt.Sprintf("http://%s/update/", config.serverAddress)
+	updateMetricURI = fmt.Sprintf("http://%s/update/", config.serverAddress)
+	batchUpdateMetricsURI = fmt.Sprintf("http://%s/updates/", config.serverAddress)
 
 	return &Agent{
 		config:      config,
@@ -97,6 +99,7 @@ func (agent *Agent) startSending() {
 		time.Sleep(agent.config.reportInterval)
 		agent.sendMetrics()
 		agent.sendJSONMetrics()
+		agent.sendMetricsBatch()
 	}
 }
 
@@ -169,8 +172,33 @@ func (agent *Agent) sendJSONMetrics() {
 }
 
 func doSendJSONMetric(metric Metric) {
-	jsonValue, _ := json.Marshal(metric)
+	jsonValue, err := json.Marshal(metric)
+	if err != nil {
+		logger.LogSugar.Errorln("doSendJSONMetric", err)
+		return
+	}
 
+	doPostJSON(updateMetricURI, jsonValue)
+}
+
+func (agent *Agent) sendMetricsBatch() {
+	var metricsSlice = make([]Metric, 0)
+	for _, metric := range agent.metrics {
+		metricsSlice = append(metricsSlice, metric)
+	}
+	metricsSlice = append(metricsSlice, agent.pollCount, agent.randomValue)
+
+	jsonValue, err := json.Marshal(metricsSlice)
+	if err != nil {
+		logger.LogSugar.Errorln("sendMetricsBatch", err)
+		return
+	}
+
+	// logger.LogSugar.Infoln("sendMetricsBatch: metrics=", string(jsonValue))
+	doPostJSON(batchUpdateMetricsURI, jsonValue)
+}
+
+func doPostJSON(url string, jsonValue []byte) {
 	var gzippedBytes bytes.Buffer
 	gzipper := gzip.NewWriter(&gzippedBytes)
 	gzipOk := false
@@ -182,26 +210,23 @@ func doSendJSONMetric(metric Metric) {
 
 	var req *http.Request
 	if gzipOk {
-		req, _ = http.NewRequest("POST", serverJSONPOSTUpdateURI, &gzippedBytes)
+		req, _ = http.NewRequest("POST", url, &gzippedBytes)
 		req.Header.Add("Content-Encoding", "gzip")
 	} else {
-		// resp, err := http.Post(serverJSONPOSTUpdateURI, "application/json", bytes.NewBuffer(jsonValue))
-		req, _ = http.NewRequest("POST", serverJSONPOSTUpdateURI, bytes.NewBuffer(jsonValue))
+		req, _ = http.NewRequest("POST", url, bytes.NewBuffer(jsonValue))
 	}
 
 	req.Header.Add("Content-Type", "application/json")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		logger.LogSugar.Errorln("doSendJSONMetric", "error", err)
+		logger.LogSugar.Errorln("doPostJSON", "error", err)
 		return
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		logger.LogSugar.Warnln("doSendJSONMetric",
-			"status:", resp.StatusCode,
-			"response:", string(bodyBytes),
-		)
+		logger.LogSugar.Warnln("doPostJSON", "status:", resp.StatusCode, "response:", string(bodyBytes))
 	}
+
 	defer resp.Body.Close()
 }
