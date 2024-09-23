@@ -114,6 +114,7 @@ func updateMetric(store storage.Storager, res http.ResponseWriter, req *http.Req
 	mtype := chi.URLParam(req, "mtype")
 	if _, err := store.UpdateMetricValue(mtype, mname, mvalueStr); err != nil {
 		http.Error(res, err.Error(), http.StatusBadRequest)
+		return
 	}
 
 	res.Header().Set("Content-type", "text/plain")
@@ -137,6 +138,7 @@ func updateMetricJSON(store storage.Storager, res http.ResponseWriter, req *http
 	updatedMetric, err := store.UpdateMetric(metric)
 	if err != nil {
 		http.Error(res, err.Error(), http.StatusBadRequest)
+		return
 	}
 
 	sendJSONedMetric(updatedMetric, res)

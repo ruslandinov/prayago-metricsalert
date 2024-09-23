@@ -93,7 +93,15 @@ func (st Storage) UpdateMetric(metric Metric) (*Metric, error) {
 }
 
 func (st Storage) UpdateBatch(metrics []Metric) error {
-	return st.dbstore.UpdateBatch(metrics)
+	var validMetrics []Metric
+	for _, metric := range metrics {
+		updatedMetric, err := st.UpdateMetric(metric)
+		if err == nil {
+			validMetrics = append(validMetrics, *updatedMetric)
+		}
+	}
+
+	return st.dbstore.UpdateBatch(validMetrics)
 }
 
 func (st Storage) SaveData() {
