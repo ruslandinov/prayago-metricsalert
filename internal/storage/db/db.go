@@ -118,6 +118,42 @@ func (dbs DBStorage) UpdateBatch(metrics []Metric) error {
 }
 
 func BulkInsert(db *sql.DB, metrics []Metric) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+
+	for _, metric := range metrics {
+		var query string
+		var queryArgs []interface{}
+
+		if metric.ISGauge() {
+			query = updateGaugeMetricQuery
+			queryArgs = append(queryArgs, metric.ID)
+			queryArgs = append(queryArgs, metric.MType)
+			queryArgs = append(queryArgs, metric.GetValueField())
+		} else {
+			query = updateCounterMetricQuery
+			queryArgs = append(queryArgs, metric.ID)
+			queryArgs = append(queryArgs, metric.MType)
+			queryArgs = append(queryArgs, metric.GetDeltaField())
+		}
+
+		_, err := tx.ExecContext(context.TODO(), query, queryArgs...)
+
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
+// А счастье было так возможно, пока не запустил тесты.
+// Постгря не дает модифицировать запис дважды(второе срабатывае ON CONFLICT порождает ошибку)
+// Оставлю пока на память этот код, много времени на него потратил
+func _BulkInsert(db *sql.DB, metrics []Metric) error {
 	var colCount = 4
 	valueStrings := make([]string, 0, len(metrics))
 	valueArgs := make([]interface{}, 0, len(metrics)*colCount)
