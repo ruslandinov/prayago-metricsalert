@@ -31,9 +31,9 @@ func NewServer(config ServerConfig) Server {
 	return server
 }
 
-func (srv Server) StartServer() {
+func (srv Server) StartServer() error {
 	logger.LogSugar.Infoln("Starting server")
-	http.ListenAndServe(srv.config.ServerAddress, GetRouter(srv.storage))
+	return http.ListenAndServe(srv.config.ServerAddress, GetRouter(srv.storage))
 }
 
 func (srv Server) Stop() {

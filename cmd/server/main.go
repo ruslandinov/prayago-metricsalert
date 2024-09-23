@@ -19,9 +19,9 @@ func main() {
 	go func() {
 		config := server.NewServerConfig()
 		srvr = server.NewServer(config)
-		srvr.StartServer()
-		// logger.LogSugar.Error("Failed to start server:", err)
-		// logger.LogSugar.Fatalf("Failed to start server:", err)
+		err := srvr.StartServer()
+		logger.LogSugar.Error("Failed to start server:", err)
+		logger.LogSugar.Fatalf("Failed to start server:%v", err)
 	}()
 
 	<-stop
