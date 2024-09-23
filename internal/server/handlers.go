@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"prayago-metricsalert/internal/logger"
 	"prayago-metricsalert/internal/storage"
 
 	"github.com/go-chi/chi/v5"
@@ -41,6 +42,11 @@ func GetRouter(store storage.Storager) http.Handler {
 	router.Post("/update/", gzipMiddleware(enforceContentTypeJSON(
 		func(res http.ResponseWriter, req *http.Request) {
 			updateMetricJSON(store, res, req)
+		},
+	)))
+	router.Post("/updates/", gzipMiddleware(enforceContentTypeJSON(
+		func(res http.ResponseWriter, req *http.Request) {
+			updatesBatch(store, res, req)
 		},
 	)))
 	router.Post("/value/", gzipMiddleware(enforceContentTypeJSON(
@@ -134,6 +140,30 @@ func updateMetricJSON(store storage.Storager, res http.ResponseWriter, req *http
 	}
 
 	sendJSONedMetric(updatedMetric, res)
+}
+
+func updatesBatch(store storage.Storager, res http.ResponseWriter, req *http.Request) {
+	var buf bytes.Buffer
+	_, err := buf.ReadFrom(req.Body)
+	if err != nil {
+		logger.LogSugar.Errorln("updatesBatch() err:", err)
+		http.Error(res, err.Error(), http.StatusBadRequest)
+		return
+	}
+	var metrics = make([]Metric, 0)
+	if err = json.Unmarshal(buf.Bytes(), &metrics); err != nil {
+		logger.LogSugar.Errorln("updatesBatch() err:", err)
+		http.Error(res, "could not unmarshall JSON", http.StatusBadRequest)
+		return
+	}
+
+	// logger.LogSugar.Infoln("updatesBatch() metrics:", metrics)
+	err = store.UpdateBatch(metrics)
+	if err != nil {
+		logger.LogSugar.Errorln("updatesBatch() err:", err)
+		http.Error(res, err.Error(), http.StatusBadRequest)
+		return
+	}
 }
 
 func getMetricJSON(store storage.Storager, res http.ResponseWriter, req *http.Request) {

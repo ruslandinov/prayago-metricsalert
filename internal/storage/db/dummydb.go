@@ -12,3 +12,7 @@ func (db DummyDB) Ping() bool {
 
 func (db DummyDB) UpdateMetric(metric Metric) {
 }
+
+func (db DummyDB) UpdateBatch(metrics []Metric) error {
+	return nil
+}

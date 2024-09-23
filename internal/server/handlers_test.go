@@ -70,6 +70,10 @@ func (store dummyStorage) Ping() bool {
 	return true
 }
 
+func (store dummyStorage) UpdateBatch(metrics []Metric) error {
+	return nil
+}
+
 func TestUpdateMetric(t *testing.T) {
 	// для теста этого хендлера нам сойдет максимально простой мок
 	store := dummyStorage{}

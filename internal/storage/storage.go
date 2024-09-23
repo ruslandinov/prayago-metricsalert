@@ -28,6 +28,7 @@ type Storager interface {
 	GetMetric(name string) (*Metric, error)
 	UpdateMetricValue(mType string, name string, value string) (*Metric, error)
 	UpdateMetric(metric Metric) (*Metric, error)
+	UpdateBatch(metrics []Metric) error
 	SaveData()
 	Ping() bool
 }
@@ -89,6 +90,10 @@ func (st Storage) UpdateMetric(metric Metric) (*Metric, error) {
 	}
 
 	return updatedMetric, err
+}
+
+func (st Storage) UpdateBatch(metrics []Metric) error {
+	return st.dbstore.UpdateBatch(metrics)
 }
 
 func (st Storage) SaveData() {
