@@ -78,9 +78,9 @@ func (ms MemStorage) GetMetric(name string) (*Metric, error) {
 	return nil, errors.New("metric not found")
 }
 
-func (ms MemStorage) UpdateMetricValue(mType string, name string, value string) error {
+func (ms MemStorage) UpdateMetricValue(mType string, name string, value string) (*Metric, error) {
 	if mType != metrics.GaugeMetric && mType != metrics.CounterMetric {
-		return fmt.Errorf("unsupported metric type %s", mType)
+		return nil, fmt.Errorf("unsupported metric type %s", mType)
 	}
 
 	metric, present := ms.storage[name]
@@ -90,14 +90,14 @@ func (ms MemStorage) UpdateMetricValue(mType string, name string, value string) 
 	}
 
 	if err := metric.UpdateValueStr(value); err != nil {
-		return err
+		return nil, err
 	}
 
 	if ms.config.StoreInterval == 0 {
 		ms.SaveData()
 	}
 
-	return nil
+	return &metric, nil
 }
 
 func (ms MemStorage) UpdateMetric(metric Metric) (*Metric, error) {

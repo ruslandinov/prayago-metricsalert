@@ -11,9 +11,9 @@ func createMetricsTable(db *sql.DB) {
 		CREATE TABLE IF NOT EXISTS metrics (
 			name VARCHAR(50) PRIMARY KEY,
 			type VARCHAR(20) NOT NULL,
-			value DOUBLE PRECISION,
+			gauge DOUBLE PRECISION,
 			counter BIGINT
-		)
+		);
 	`)
 
 	if err != nil {

@@ -106,7 +106,7 @@ func updateMetric(store storage.Storager, res http.ResponseWriter, req *http.Req
 	}
 
 	mtype := chi.URLParam(req, "mtype")
-	if err := store.UpdateMetricValue(mtype, mname, mvalueStr); err != nil {
+	if _, err := store.UpdateMetricValue(mtype, mname, mvalueStr); err != nil {
 		http.Error(res, err.Error(), http.StatusBadRequest)
 	}
 

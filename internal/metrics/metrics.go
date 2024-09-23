@@ -80,6 +80,18 @@ func NewMetric(ID string, MType string) Metric {
 	}
 }
 
+func (m Metric) GetDeltaField() int64 {
+	return *m.Delta
+}
+
+func (m Metric) GetValueField() float64 {
+	return *m.Value
+}
+
+func (m Metric) ISGauge() bool {
+	return m.MType == GaugeMetric
+}
+
 func (m Metric) GetValue() any {
 	if m.MType == GaugeMetric {
 		return *m.Value

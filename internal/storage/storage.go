@@ -19,14 +19,14 @@ type StorageConfig struct {
 type Storage struct {
 	config   StorageConfig
 	memstore memory.MemStorage
-	dbstore  db.DBStorage
+	dbstore  db.DBStorager
 }
 
 type Storager interface {
 	GetAllMetricsAsString() string
 	GetMetricValue(name string) (any, error)
 	GetMetric(name string) (*Metric, error)
-	UpdateMetricValue(mType string, name string, value string) error
+	UpdateMetricValue(mType string, name string, value string) (*Metric, error)
 	UpdateMetric(metric Metric) (*Metric, error)
 	SaveData()
 	Ping() bool
@@ -40,12 +40,16 @@ func NewStorage(config StorageConfig) Storage {
 	}
 	memstore := memory.NewMemStorage(msConfig)
 
-	var dbstore = db.DBStorage{}
+	// не хочется раскидывать по коду проверки "если есть база, то пиши в нее"
+	// поэтому если база не нужна, создаю "мок", который ничего не делает, и код чище
+	var dbstore db.DBStorager
 	if config.DBConnectionString != "" {
 		dbsConfig := db.DBStorageConfig{
 			ConnectionString: config.DBConnectionString,
 		}
 		dbstore = db.NewDBStorage(dbsConfig)
+	} else {
+		dbstore = db.NewDummyDB()
 	}
 
 	storage := Storage{
@@ -69,12 +73,22 @@ func (st Storage) GetMetric(name string) (*Metric, error) {
 	return st.memstore.GetMetric(name)
 }
 
-func (st Storage) UpdateMetricValue(mType string, name string, value string) error {
-	return st.memstore.UpdateMetricValue(mType, name, value)
+func (st Storage) UpdateMetricValue(mType string, name string, value string) (*Metric, error) {
+	metric, err := st.memstore.UpdateMetricValue(mType, name, value)
+	if err == nil {
+		st.dbstore.UpdateMetric(*metric)
+	}
+
+	return metric, err
 }
 
 func (st Storage) UpdateMetric(metric Metric) (*Metric, error) {
-	return st.memstore.UpdateMetric(metric)
+	updatedMetric, err := st.memstore.UpdateMetric(metric)
+	if err == nil {
+		st.dbstore.UpdateMetric(*updatedMetric)
+	}
+
+	return updatedMetric, err
 }
 
 func (st Storage) SaveData() {
@@ -82,10 +96,5 @@ func (st Storage) SaveData() {
 }
 
 func (st Storage) Ping() bool {
-	// как проверять на nil?
-	if st.dbstore != (db.DBStorage{}) {
-		return st.dbstore.Ping()
-	}
-
-	return false
+	return st.dbstore.Ping()
 }

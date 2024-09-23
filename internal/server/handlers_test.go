@@ -37,18 +37,18 @@ func (store dummyStorage) GetMetric(name string) (*Metric, error) {
 	return nil, nil
 }
 
-func (store dummyStorage) UpdateMetricValue(mType string, name string, value string) error {
+func (store dummyStorage) UpdateMetricValue(mType string, name string, value string) (*Metric, error) {
 	if name == "" {
-		return errors.New("")
+		return nil, errors.New("")
 	}
 
 	if mType != metrics.GaugeMetric && mType != metrics.CounterMetric {
-		return errors.New("")
+		return nil, errors.New("")
 	}
 
 	metric := metrics.NewMetric(name, mType)
 	err := metric.UpdateValueStr(value)
-	return err
+	return &metric, err
 }
 
 func (store dummyStorage) UpdateMetric(metric Metric) (*Metric, error) {
