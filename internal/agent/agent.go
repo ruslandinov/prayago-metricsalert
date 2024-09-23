@@ -62,7 +62,7 @@ const randomValue = "RandomValue"
 var serverJSONPOSTUpdateURI string
 
 func NewAgent(config AgentConfig) *Agent {
-	logger.LogSugar.Infoln("Agent created.\r\n")
+	logger.LogSugar.Infoln("Agent created")
 
 	serverJSONPOSTUpdateURI = fmt.Sprintf("http://%s/update/", config.serverAddress)
 
@@ -75,7 +75,7 @@ func NewAgent(config AgentConfig) *Agent {
 }
 
 func (agent *Agent) Run() {
-	logger.LogSugar.Infoln("Agent started.\r\n")
+	logger.LogSugar.Infoln("Agent started")
 	go agent.startPolling()
 	go agent.startSending()
 	for {
@@ -84,7 +84,7 @@ func (agent *Agent) Run() {
 }
 
 func (agent *Agent) startPolling() {
-	logger.LogSugar.Infof("Agent started polling. %v\r\n", agent.config.pollInterval)
+	logger.LogSugar.Infoln("Agent started polling", agent.config.pollInterval)
 	for {
 		time.Sleep(agent.config.pollInterval)
 		agent.updateMetrics()
@@ -92,7 +92,7 @@ func (agent *Agent) startPolling() {
 }
 
 func (agent *Agent) startSending() {
-	logger.LogSugar.Infof("Agent started sending. %v\r\n", agent.config.reportInterval)
+	logger.LogSugar.Infoln("Agent started sending", agent.config.reportInterval)
 	for {
 		time.Sleep(agent.config.reportInterval)
 		agent.sendMetrics()
