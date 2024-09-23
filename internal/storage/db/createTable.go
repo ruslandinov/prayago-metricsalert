@@ -2,7 +2,7 @@ package db
 
 import (
 	"database/sql"
-	"fmt"
+	"prayago-metricsalert/internal/logger"
 )
 
 func createMetricsTable(db *sql.DB) {
@@ -17,7 +17,7 @@ func createMetricsTable(db *sql.DB) {
 	`)
 
 	if err != nil {
-		fmt.Printf("Ошибка создания таблицы: %v\r\n", err)
+		logger.LogSugar.Errorf("Ошибка создания таблицы: %v", err)
 		panic(err)
 	}
 }

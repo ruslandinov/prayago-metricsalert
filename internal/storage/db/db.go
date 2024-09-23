@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"prayago-metricsalert/internal/logger"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -19,11 +20,14 @@ type DBStorage struct {
 }
 
 func NewDBStorage(config DBStorageConfig) DBStorage {
-	fmt.Printf("NewDBStorage config: %v\r\n", config)
+	logger.LogSugar.Infof("DBStorage created, config: %v", config)
+
 	db, err := sql.Open("pgx", config.ConnectionString)
 	if err != nil {
 		fmt.Printf("Ошибка подключения к БД: %v\r\n", err)
 	}
+
+	createMetricsTable(db)
 
 	dbstorage := DBStorage{
 		config,
