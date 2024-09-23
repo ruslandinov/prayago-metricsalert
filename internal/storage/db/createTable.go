@@ -18,6 +18,6 @@ func createMetricsTable(db *sql.DB) {
 
 	if err != nil {
 		logger.LogSugar.Errorf("Ошибка создания таблицы: %v", err)
-		panic(err)
+		// panic(err)
 	}
 }

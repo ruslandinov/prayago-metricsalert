@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
 	"math/rand"
 	"net/http"
 	"prayago-metricsalert/internal/logger"
@@ -14,6 +14,8 @@ import (
 	"runtime"
 	"strconv"
 	"time"
+
+	"github.com/go-resty/resty/v2"
 )
 
 var needfulMemStats = [...]string{
@@ -54,6 +56,7 @@ type Agent struct {
 	metrics     map[string]Metric
 	pollCount   Metric
 	randomValue Metric
+	client      *resty.Client
 }
 
 const pollCount = "PollCount"
@@ -68,11 +71,32 @@ func NewAgent(config AgentConfig) *Agent {
 	updateMetricURI = fmt.Sprintf("http://%s/update/", config.serverAddress)
 	batchUpdateMetricsURI = fmt.Sprintf("http://%s/updates/", config.serverAddress)
 
+	// под 13ый инкремент
+	client := resty.New()
+	client.
+		SetRetryCount(3).
+		SetRetryMaxWaitTime(15 * time.Second).
+		SetRetryAfter(
+			func(client *resty.Client, resp *resty.Response) (time.Duration, error) {
+				if resp.Request.Attempt > 4 {
+					return 0, errors.New("quota exceeded")
+				}
+				// 3 попытки, через 1-3-5 секунд, арифметика второй класс
+				return time.Duration(resp.Request.Attempt*2-1) * time.Second, nil
+			},
+		).
+		AddRetryCondition(
+			func(r *resty.Response, err error) bool {
+				return err != nil || r.StatusCode() == http.StatusTooManyRequests
+			},
+		)
+
 	return &Agent{
 		config:      config,
 		metrics:     make(map[string]Metric),
 		pollCount:   metrics.NewMetric("PollCount", metrics.CounterMetric),
 		randomValue: metrics.NewMetric("RandomValue", metrics.GaugeMetric),
+		client:      client,
 	}
 }
 
@@ -136,7 +160,7 @@ func (agent *Agent) sendMetrics() {
 			agent.config.serverAddress,
 			metric.MType, metric.ID, *metric.Value,
 		)
-		doSendMetric(url)
+		doPostMetric(agent.client, url)
 	}
 
 	// pollCount
@@ -144,41 +168,40 @@ func (agent *Agent) sendMetrics() {
 		agent.config.serverAddress,
 		metrics.CounterMetric, pollCount, *agent.pollCount.Delta,
 	)
-	doSendMetric(url)
+	doPostMetric(agent.client, url)
 	// randomValue
 	url = fmt.Sprintf("http://%s/update/%s/%s/%v",
 		agent.config.serverAddress,
 		metrics.GaugeMetric, randomValue, *agent.randomValue.Value,
 	)
-	doSendMetric(url)
+	doPostMetric(agent.client, url)
 }
 
-func doSendMetric(url string) {
-	resp, err := http.Post(url, "text/plain", nil)
+func doPostMetric(client *resty.Client, url string) {
+	_, err := client.R().SetHeader("Content-Type", "text/plain").Post(url)
 	if err != nil {
-		logger.LogSugar.Errorf("doSendMetric(): url=%v, error=%v\r\n", url, err)
+		logger.LogSugar.Errorf("doPostMetric(): url=%v, error=%v", url, err)
 		return
 	}
-	defer resp.Body.Close()
 }
 
 func (agent *Agent) sendJSONMetrics() {
 	for _, metric := range agent.metrics {
-		doSendJSONMetric(metric)
+		doSendJSONMetric(agent.client, metric)
 	}
 
-	doSendJSONMetric(agent.pollCount)
-	doSendJSONMetric(agent.randomValue)
+	doSendJSONMetric(agent.client, agent.pollCount)
+	doSendJSONMetric(agent.client, agent.randomValue)
 }
 
-func doSendJSONMetric(metric Metric) {
+func doSendJSONMetric(client *resty.Client, metric Metric) {
 	jsonValue, err := json.Marshal(metric)
 	if err != nil {
 		logger.LogSugar.Errorln("doSendJSONMetric", err)
 		return
 	}
 
-	doPostJSON(updateMetricURI, jsonValue)
+	doPostJSON(*client, updateMetricURI, jsonValue)
 }
 
 func (agent *Agent) sendMetricsBatch() {
@@ -195,10 +218,10 @@ func (agent *Agent) sendMetricsBatch() {
 	}
 
 	// logger.LogSugar.Infoln("sendMetricsBatch: metrics=", string(jsonValue))
-	doPostJSON(batchUpdateMetricsURI, jsonValue)
+	doPostJSON(*agent.client, batchUpdateMetricsURI, jsonValue)
 }
 
-func doPostJSON(url string, jsonValue []byte) {
+func doPostJSON(client resty.Client, url string, jsonValue []byte) {
 	var gzippedBytes bytes.Buffer
 	gzipper := gzip.NewWriter(&gzippedBytes)
 	gzipOk := false
@@ -208,25 +231,27 @@ func doPostJSON(url string, jsonValue []byte) {
 		}
 	}
 
-	var req *http.Request
+	var resp *resty.Response
+	var err error
+	req := client.R()
+	req.SetHeader("Content-Type", "application/json")
 	if gzipOk {
-		req, _ = http.NewRequest("POST", url, &gzippedBytes)
-		req.Header.Add("Content-Encoding", "gzip")
+		req.SetHeader("Content-Encoding", "gzip")
+		req.SetBody(&gzippedBytes)
+		resp, err = req.Post(url)
 	} else {
-		req, _ = http.NewRequest("POST", url, bytes.NewBuffer(jsonValue))
+		req.SetBody(bytes.NewBuffer(jsonValue))
+		resp, err = req.Post(url)
 	}
 
-	req.Header.Add("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		logger.LogSugar.Errorln("doPostJSON", "error", err)
 		return
+	} else {
+		logger.LogSugar.Infoln("doPostJSON", "response:", string(resp.Body()))
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		logger.LogSugar.Warnln("doPostJSON", "status:", resp.StatusCode, "response:", string(bodyBytes))
+	if resp.StatusCode() != http.StatusOK {
+		logger.LogSugar.Infoln("doPostJSON", "status:", resp.StatusCode())
 	}
-
-	defer resp.Body.Close()
 }
