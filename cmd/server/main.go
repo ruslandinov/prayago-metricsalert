@@ -1,41 +1,34 @@
 package main
 
 import (
+	// "fmt"
 	"os"
 	"os/signal"
 	"prayago-metricsalert/internal/logger"
-	"prayago-metricsalert/internal/memstorage"
 	"prayago-metricsalert/internal/server"
 	"syscall"
+	"time"
 )
 
 func main() {
+	logger.LogSugar.Infoln("Starting server")
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 
-	var ms memstorage.MemStorage
+	var srvr server.Server
 	go func() {
 		config := server.NewServerConfig()
-		logger.LogSugar.Infoln("Starting server on", config.ServerAddress)
-
-		msConfig := memstorage.MemStorageConfig{
-			FPath:         config.StorageFPath,
-			StoreInterval: config.StoreInterval,
-			ShouldRestore: config.RestoreStorageOnStart,
-		}
-		ms = memstorage.NewMemStorage(msConfig)
-
-		if _, err := server.NewServer(ms, config); err != nil {
-			logger.LogSugar.Error("Failed to start server:", err)
-			logger.LogSugar.Fatalf("Failed to start server:", err)
-		}
+		srvr = server.NewServer(config)
+		err := srvr.StartServer()
+		logger.LogSugar.Error("Failed to start server:", err)
+		logger.LogSugar.Fatalf("Failed to start server:%v", err)
 	}()
 
 	<-stop
 
-	logger.LogSugar.Info("Shutting down server...")
-	logger.LogSugar.Info("Saving data...")
-	ms.SaveData()
+	logger.LogSugar.Infoln("Stoping server")
+	srvr.Stop()
 
-	logger.LogSugar.Info("Server exiting")
+	time.Sleep(2 * time.Second)
+	logger.LogSugar.Infoln("Server exit")
 }
